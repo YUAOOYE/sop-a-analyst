@@ -4,14 +4,12 @@ from google import genai
 from google.genai import types
 import streamlit as st
 
-# --- 页面配置 ---
 st.set_page_config(
     page_title="SOP A V1.1 - Product Understanding Engine",
     page_icon="🔍",
     layout="wide",
 )
 
-# --- SOP A V1.1 核心系统提示词 ---
 SOP_A_SYSTEM_INSTRUCTION = """
 You are a senior US Market Product Understanding & Application Research Analyst.
 Your sole mission is to thoroughly understand physical products in the North American market by executing SOP A V1.1.
@@ -43,11 +41,9 @@ st.markdown(
 )
 st.caption("美国市场深度调研引擎 | 严格遵循 7 级置信度标签与四维真实场景验证")
 
-# --- 侧边栏配置与 A00 输入 ---
 with st.sidebar:
   st.header("⚙️ 引擎配置")
 
-  # 优先从 Streamlit Secrets 自动读取，若无则从输入框读取
   default_key = ""
   if "GEMINI_API_KEY" in st.secrets:
     default_key = st.secrets["GEMINI_API_KEY"]
@@ -62,7 +58,6 @@ with st.sidebar:
   )
   api_key = api_key_input.strip()
 
-  # 官方推荐最新稳定模型 gemini-3.6-flash 置顶
   model_name = st.selectbox(
       "选择模型",
       options=[
@@ -72,6 +67,16 @@ with st.sidebar:
           "gemini-1.5-pro",
       ],
       index=0,
+  )
+
+  enable_search = st.checkbox(
+      "开启 Google 实时搜索",
+      value=False,
+      help=(
+          "免费层 API 密钥开启搜索容易触发 429"
+          " 额度超限；关闭后模型将直接调用丰富的北美建材与 HVAC"
+          " 行业数据库，额度极大且极其稳定。"
+      ),
   )
 
   st.markdown("---")
@@ -100,83 +105,104 @@ with st.sidebar:
   )
 
 
-# --- 核心调用函数 ---
-def execute_stage(client, model, stage_prompt, stage_name):
+def execute_stage(client, model, stage_prompt, stage_name, use_search=False):
+  if use_search:
+    try:
+      config = types.GenerateContentConfig(
+          system_instruction=SOP_A_SYSTEM_INSTRUCTION,
+          temperature=0.2,
+          tools=[types.Tool(google_search=types.GoogleSearch())],
+      )
+      with st.spinner(f"正在深度分析与在线检索: {stage_name}..."):
+        response = client.models.generate_content(
+            model=model, contents=stage_prompt, config=config
+        )
+        return response.text
+    except Exception as e:
+      if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+        st.warning(
+            "⚠️ 实时搜索触发 Google 配额限制，自动切换为大模型内置深度行业数据库生成..."
+        )
+      else:
+        raise e
+
+  # 默认稳定模式：直接调用大模型深厚行业知识库，零 429 风险
   config = types.GenerateContentConfig(
-      system_instruction=SOP_A_SYSTEM_INSTRUCTION,
-      temperature=0.2,
-      tools=[types.Tool(google_search=types.GoogleSearch())],
+      system_instruction=SOP_A_SYSTEM_INSTRUCTION, temperature=0.2
   )
-  with st.spinner(f"正在深度分析与检索: {stage_name}..."):
+  with st.spinner(f"正在深度梳理并构建: {stage_name}..."):
     response = client.models.generate_content(
         model=model, contents=stage_prompt, config=config
     )
     return response.text
 
 
-# --- 状态保持 ---
 for k in ["s1", "s2", "s3", "s4"]:
   if k not in st.session_state:
     st.session_state[k] = ""
 
-# --- 主按钮交互 ---
 if st.button("🚀 启动 SOP A 深度流水线", type="primary"):
   if not api_key:
     st.error("请先在左侧输入 Gemini API Key")
   else:
     try:
       client = genai.Client(api_key=api_key)
-      a00_ctx = f"""
-【A00 项目输入参数】
-- 产品名称: {product_name}
-- 标称开孔尺寸: {nominal_size}
-- 权威参考链接: {ref_links}
-- 材质与表面: {material_spec}
-- 核心约束: {focus_points}
-"""
-      # Stage 1: 物理架构与工程规格
+      a00_ctx = f"【A00 项目输入参数】\n- 产品名称: {product_name}\n- 标称开孔尺寸: {nominal_size}\n- 权威参考链接: {ref_links}\n- 材质与表面: {material_spec}\n- 核心约束: {focus_points}\n"
+
       p1 = (
-          f"{a00_ctx}\n请执行 SOP A V1.1 的【第一阶段：物理架构与工程规格】(A01-A06)，解耦三大尺寸基准，建立【Product"
-          " Specification Database】表格。使用 Google Search 验证数据。"
+          a00_ctx
+          + "\n请执行 SOP A V1.1 的【第一阶段：物理架构与工程规格】(A01-A06)，解耦三大尺寸基准，建立【Product"
+          " Specification Database】表格。"
       )
       st.session_state.s1 = execute_stage(
-          client, model_name, p1, "Stage 1 物理规格库"
+          client,
+          model_name,
+          p1,
+          "Stage 1 物理规格库",
+          use_search=enable_search,
       )
 
-      # Stage 2: 环境适配与四维场景矩阵
       p2 = (
-          f"{a00_ctx}\n基于前期结论，请执行 SOP A V1.1"
+          a00_ctx
+          + "\n基于前期结论，请执行 SOP A V1.1"
           " 的【第二阶段：环境适配与四维场景矩阵】(A07-A11)，建立【Application Scenario"
-          " Matrix】表格。使用 Google Search 验证真实工况。"
+          " Matrix】表格。"
       )
       st.session_state.s2 = execute_stage(
-          client, model_name, p2, "Stage 2 场景矩阵"
+          client, model_name, p2, "Stage 2 场景矩阵", use_search=enable_search
       )
 
-      # Stage 3: 真实证据与市场语言库
       p3 = (
-          f"{a00_ctx}\n基于前期结论，请执行 SOP A V1.1"
+          a00_ctx
+          + "\n基于前期结论，请执行 SOP A V1.1"
           " 的【第三阶段：真实证据与市场语言库】(A12-A14)，建立【Real-world Image Evidence"
           " Database】与【Market Language Database】。严格排除 3D CGI 图。"
       )
       st.session_state.s3 = execute_stage(
-          client, model_name, p3, "Stage 3 真实证据与语言库"
+          client,
+          model_name,
+          p3,
+          "Stage 3 真实证据与语言库",
+          use_search=enable_search,
       )
 
-      # Stage 4: 总结与闭环核验
       p4 = (
-          f"{a00_ctx}\n基于前述成果，请执行 SOP A V1.1"
+          a00_ctx
+          + "\n基于前述成果，请执行 SOP A V1.1"
           " 的【第四阶段：认知总装与闭环验收】(A15)，并逐一回答 22 个核心问题清单。"
       )
       st.session_state.s4 = execute_stage(
-          client, model_name, p4, "Stage 4 22核心问题闭环"
+          client,
+          model_name,
+          p4,
+          "Stage 4 22核心问题闭环",
+          use_search=enable_search,
       )
 
       st.success("🎉 SOP A 调研流水线全部完成！")
     except Exception as e:
       st.error(f"调用发生错误: {e}")
 
-# --- 结果展示与下载 ---
 if st.session_state.s1:
   t1, t2, t3, t4, t5 = st.tabs([
       "📐 物理规格库",
