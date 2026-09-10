@@ -12,7 +12,7 @@ except ImportError:
   HAS_DDGS = False
 
 st.set_page_config(
-    page_title="SOP A V1.2 - Product Understanding & Industrial Research Engine",
+    page_title="SOP A V1.2 - Multi-Provider Industrial Research Engine",
     page_icon="🔍",
     layout="wide",
 )
@@ -55,16 +55,58 @@ Evidence & Confidence Rules:
 """
 
 st.markdown(
-    "## 🔍 SOP A V1.2 工业级产品认知与实际应用场景分析系统"
+    "## 🔍 SOP A V1.2 工业级产品认知与应用场景分析系统"
 )
 st.caption(
-    "全流程升级至 19 步标准工法 | 深度融合【制造工艺/材质图谱】、【合规检测门槛】、【零售包装交付】与【前沿场景雷达】"
+    "全流程 19 步标准工法 | 支持多模型与多供应商切换 (Gemini / WorkBuddy /"
+    " DeepSeek / OpenAI) | 开源实时 RAG 驱动"
 )
+
+PROVIDER_CONFIG = {
+    "Google Gemini": {
+        "models": [
+            "gemini-3.6-flash",
+            "gemini-1.5-flash",
+            "gemini-3.8-flash",
+            "gemini-1.5-pro",
+        ],
+        "default_url": "",
+        "key_hint": "从 Google AI Studio 获取的 API Key",
+    },
+    "WorkBuddy (聚合平台)": {
+        "models": [
+            "claude-3-7-sonnet",
+            "claude-3-5-sonnet",
+            "gpt-4o",
+            "o3-mini",
+            "deepseek-r1",
+            "deepseek-v3",
+            "gemini-2.0-flash",
+        ],
+        "default_url": "https://api.workbuddy.cn/v1",
+        "key_hint": "从 WorkBuddy 平台获取的 API 密钥",
+    },
+    "DeepSeek (深度求索)": {
+        "models": ["deepseek-chat", "deepseek-reasoner"],
+        "default_url": "https://api.deepseek.com",
+        "key_hint": "从 DeepSeek 开放平台获取的 API Key",
+    },
+    "OpenAI": {
+        "models": ["gpt-4o", "gpt-4o-mini", "o3-mini", "o1"],
+        "default_url": "https://api.openai.com/v1",
+        "key_hint": "OpenAI 官方 API Key (sk-...)",
+    },
+    "自定义 OpenAI 兼容接口": {
+        "models": ["gpt-4o", "claude-3-7-sonnet", "deepseek-r1", "自定义输入"],
+        "default_url": "https://api.example.com/v1",
+        "key_hint": "中转服务商提供的 API 密钥",
+    },
+}
 
 
 def search_live_web(query, max_results=4):
   if not HAS_DDGS:
-    return "（未检测到 duckduckgo-search 依赖，使用大模型内置专业知识库）"
+    return "（未检测到 duckduckgo-search 依赖，使用内置行业数据库）"
   try:
     ddgs = DDGS()
     results = []
@@ -79,32 +121,43 @@ def search_live_web(query, max_results=4):
 
 
 with st.sidebar:
-  st.header("⚙️ 引擎配置")
+  st.header("⚙️ API 供应商与模型配置")
 
-  default_key = ""
-  if "GEMINI_API_KEY" in st.secrets:
-    default_key = st.secrets["GEMINI_API_KEY"]
-  elif os.environ.get("GEMINI_API_KEY"):
-    default_key = os.environ.get("GEMINI_API_KEY")
+  selected_provider = st.selectbox(
+      "选择 API 供应商", options=list(PROVIDER_CONFIG.keys()), index=0
+  )
+
+  current_cfg = PROVIDER_CONFIG[selected_provider]
+
+  # 模型选择动态联动
+  model_list = current_cfg["models"]
+  selected_model = st.selectbox(
+      f"选择 {selected_provider} 最新模型", options=model_list, index=0
+  )
+
+  if selected_model == "自定义输入":
+    actual_model = st.text_input("输入模型名称", value="gpt-4o")
+  else:
+    actual_model = selected_model
 
   api_key_input = st.text_input(
-      "Gemini API Key",
-      value=default_key,
+      f"{selected_provider} API Key*",
       type="password",
-      help="从 Google AI Studio 获取的免费 API Key",
+      help=current_cfg["key_hint"],
   )
   api_key = api_key_input.strip()
 
-  model_name = st.selectbox(
-      "选择模型",
-      options=[
-          "gemini-3.6-flash",
-          "gemini-1.5-flash",
-          "gemini-3.8-flash",
-          "gemini-1.5-pro",
-      ],
-      index=0,
-  )
+  base_url = ""
+  if selected_provider in [
+      "WorkBuddy (聚合平台)",
+      "自定义 OpenAI 兼容接口",
+      "DeepSeek (深度求索)",
+  ]:
+    base_url = st.text_input(
+        "API Base URL (接口基地址)",
+        value=current_cfg["default_url"],
+        help="如果是私有部署或特定中转网关，请在此修改接口地址",
+    ).strip()
 
   st.markdown("---")
   st.header("📋 A00 项目启动单")
@@ -132,15 +185,56 @@ with st.sidebar:
   )
 
 
-def execute_stage(client, model, stage_prompt, stage_name):
-  config = types.GenerateContentConfig(
-      system_instruction=SOP_A_SYSTEM_INSTRUCTION, temperature=0.2
-  )
-  with st.spinner(f"正在深度分析并构建: {stage_name}..."):
-    response = client.models.generate_content(
-        model=model, contents=stage_prompt, config=config
+def call_unified_llm(
+    provider, model, key, url, system_instruction, prompt, temperature=0.2
+):
+  if provider == "Google Gemini":
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=key)
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction, temperature=temperature
     )
-    return response.text
+    res = client.models.generate_content(
+        model=model, contents=prompt, config=config
+    )
+    return res.text
+  else:
+    from openai import OpenAI
+
+    custom_base = url if url else None
+    client = OpenAI(api_key=key, base_url=custom_base)
+
+    is_reasoning = any(
+        x in model.lower() for x in ["o1", "o3", "reasoner", "r1"]
+    )
+
+    messages = [
+        {"role": "system", "content": system_instruction},
+        {"role": "user", "content": prompt},
+    ]
+
+    kwargs = {"model": model, "messages": messages}
+    if not is_reasoning:
+      kwargs["temperature"] = temperature
+
+    res = client.chat.completions.create(**kwargs)
+    return res.choices[0].message.content
+
+
+def execute_stage(stage_name, stage_prompt):
+  with st.spinner(
+      f"[{selected_provider} / {actual_model}] 正在深度构建: {stage_name}..."
+  ):
+    return call_unified_llm(
+        provider=selected_provider,
+        model=actual_model,
+        key=api_key,
+        url=base_url,
+        system_instruction=SOP_A_SYSTEM_INSTRUCTION,
+        prompt=stage_prompt,
+    )
 
 
 for k in ["s1", "s2", "s3", "s4", "live_data"]:
@@ -149,13 +243,11 @@ for k in ["s1", "s2", "s3", "s4", "live_data"]:
 
 if st.button("🚀 启动 SOP A V1.2 全流程深度流水线", type="primary"):
   if not api_key:
-    st.error("请先在左侧输入 Gemini API Key")
+    st.error(f"请先在左侧输入 {selected_provider} 的 API Key")
   else:
     try:
-      client = genai.Client(api_key=api_key)
-
       with st.spinner(
-          "🌐 正在实时检索北美主流商超规格、制造材质标准及真实买家评价..."
+          "🌐 正在全网实时抓取北美主流商超规格、工艺标准及买家真实评价..."
       ):
         q1 = (
             f"{product_name} {nominal_size} cast aluminum stamped steel Home"
@@ -191,7 +283,6 @@ if st.button("🚀 启动 SOP A V1.2 全流程深度流水线", type="primary"):
 {st.session_state.live_data}
 """
 
-      # Stage 1: 物理架构、制造工艺与合规规格 (A01 - A06.2)
       p1 = (
           a00_ctx
           + """
@@ -216,11 +307,8 @@ if st.button("🚀 启动 SOP A V1.2 全流程深度流水线", type="primary"):
 严格标注 7 级置信度标签。
 """
       )
-      st.session_state.s1 = execute_stage(
-          client, model_name, p1, "Stage 1 架构、制造工艺与规格库"
-      )
+      st.session_state.s1 = execute_stage("Stage 1 架构、制造工艺与规格库", p1)
 
-      # Stage 2: 安装环境、运维与四维场景矩阵 (含新兴场景雷达) (A07 - A11.5)
       p2 = (
           a00_ctx
           + """
@@ -236,10 +324,9 @@ if st.button("🚀 启动 SOP A V1.2 全流程深度流水线", type="primary"):
 """
       )
       st.session_state.s2 = execute_stage(
-          client, model_name, p2, "Stage 2 场景矩阵与前沿场景雷达"
+          "Stage 2 场景矩阵与前沿场景雷达", p2
       )
 
-      # Stage 3: 现场实拍证据、市场语言与用户行为 (A12 - A14)
       p3 = (
           a00_ctx
           + """
@@ -253,11 +340,8 @@ if st.button("🚀 启动 SOP A V1.2 全流程深度流水线", type="primary"):
    - 总结高频客诉退款（RMA）根源分析（买家开孔测量错误、边缘锋利、拨片松脱）。
 """
       )
-      st.session_state.s3 = execute_stage(
-          client, model_name, p3, "Stage 3 真实证据与市场语言库"
-      )
+      st.session_state.s3 = execute_stage("Stage 3 真实证据与市场语言库", p3)
 
-      # Stage 4: 总结、企业制造落地自检与 22 核心问题闭环 (A15)
       p4 = (
           a00_ctx
           + """
@@ -270,10 +354,12 @@ if st.button("🚀 启动 SOP A V1.2 全流程深度流水线", type="primary"):
 """
       )
       st.session_state.s4 = execute_stage(
-          client, model_name, p4, "Stage 4 认知总装与 22 核心问题闭环"
+          "Stage 4 认知总装与 22 核心问题闭环", p4
       )
 
-      st.success("🎉 SOP A V1.2 工业级全流程调研圆满完成！")
+      st.success(
+          f"🎉 调研完成！当前模型引擎：{selected_provider} ({actual_model})"
+      )
     except Exception as e:
       st.error(f"调用发生错误: {e}")
 
@@ -296,7 +382,8 @@ if st.session_state.s1:
     st.markdown(st.session_state.s4)
   with t5:
     full_text = (
-        f"# {product_name} SOP A V1.2 工业级深度调研报告\n\n{st.session_state.s1}\n\n---\n\n{st.session_state.s2}\n\n---\n\n{st.session_state.s3}\n\n---\n\n{st.session_state.s4}"
+        f"# {product_name} SOP A V1.2 工业级深度调研报告\n引擎模型: {selected_provider}"
+        f" - {actual_model}\n\n{st.session_state.s1}\n\n---\n\n{st.session_state.s2}\n\n---\n\n{st.session_state.s3}\n\n---\n\n{st.session_state.s4}"
     )
     st.download_button(
         "📥 一键下载完整 Markdown 报告",
