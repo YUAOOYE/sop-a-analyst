@@ -5,7 +5,7 @@ import re
 import time
 import streamlit as st
 
-# ==================== 1. 依赖探测与安全导入 ====================
+# ==================== 1. 依赖库导入与安全保护 ====================
 HAS_OPENAI = False
 HAS_GEMINI = False
 HAS_DDGS = False
@@ -39,22 +39,21 @@ st.set_page_config(
     layout="wide",
 )
 
-# 专属严谨工程事实认知 System Prompt（无痛点/差评分析，100% 强锚定实时搜索）
+# 威霖工程专家与外贸严谨认知 System Prompt
 SOP_A_SYSTEM_INSTRUCTION = """
 You are a Senior US HVAC RGD (Registers, Grilles, Diffusers) Sourcing Director & Chief Industrial Engineer at Ningbo Runner Industrial Corporation (宁波威霖住宅设施有限公司).
 Your mission is to establish deep, objective, engineering-grade physical and market reality understanding of HVAC terminal products in North America.
 
 STRICT FACT-GROUNDING MANDATE (CRITICAL):
 1. You MUST prioritize the real-time search data inside `<live_ground_truth_feed>` above all else.
-2. Exact Metrics: When reporting MSRP retail prices, dimensional tolerances, Free Area %, CFM airflow numbers, HS Codes, or US Section 301 tariffs, you MUST transcribe the specific numbers retrieved in the live feed (e.g. state $19.98 rather than a vague range like $18-$25).
-3. Evidence Attribution: Always attach the live source reference or timestamp to every engineering metric in your tables.
-4. NO PAIN POINT / COMPLAINT ANALYSIS: The user has a separate product development pipeline. DO NOT perform 1-2 star customer complaint reviews or speculative redesigns. Focus strictly on physical realities, manufacturing feasibility, building floor compatibility, and trade parameters.
+2. Exact Metrics: Transcribe exact retail prices (e.g. $19.98 / $7.42), actual dimensional drop-in negative tolerances (-1/8" to -3/16"), Free Area %, and US Customs HS Code / 301 tariff rates directly from the live feed.
+3. NO PAIN POINT / COMPLAINT ANALYSIS: DO NOT perform 1-2 star customer complaint reviews, RMA refund root cause analysis, or speculative redesigns (the user has a separate R&D SOP). Focus strictly on physical realities, manufacturing feasibility, building compatibility, and trade parameters.
 
 Manufacturing & Engineering Focus:
 - Dual Footprint: Ningbo HQ (China) vs. Runner Thailand (US Section 301 tariff mitigation).
 - Production Realities: High-pressure die casting (A380/ADC12), progressive sheet stamping (SPCC), 6063-T5 aluminum extrusion, eco-friendly dual-coat electro & electrostatic powder coating (ASTM B117 salt spray).
 - Hard Technical Standards: IBC concentrated floor load (>=300 lbs), ADA heel-proof (<9.5mm / 0.375" gap), Free Area % / CFM airflow drop, and duct opening vs. box drop-in negative tolerances (-1/8" to -3/16").
-- Logistics: Packaging engineering (Pro Bulk pack vs. Retail Shrink-wrap/Blister with ISTA-1A drop test), and 40HQ container CBM load calculation.
+- Deep Detail Verification: Blade spacing (1/3" vs 1/2" pitch), Throw pattern (1-way, 2-way, 3-way, 4-way, 360° circular), Mounting frame (Beveled flange with countersunk screw holes + EVA foam gasket vs Drop-in gravity fit), Neck extension & Collar shape (Rectangular vs Round collar for flex duct).
 
 Confidence Tagging:
 Every factual claim must carry one tag:
@@ -62,7 +61,6 @@ Every factual claim must carry one tag:
 Missing data tags: 【未找到】 / 【无法验证】 / 【行业推断】
 """
 
-# 官方全量大模型配置库（含 2026 最新官方模型全家桶）
 PROVIDER_CONFIG = {
     "Google Gemini": {
         "models": [
@@ -98,7 +96,7 @@ PROVIDER_CONFIG = {
             "gpt-oss-120b",
         ],
         "default_url": "https://api.openai.com/v1",
-        "key_hint": "OpenAI 官方或授权代理 API Key (sk-...)",
+        "key_hint": "OpenAI 官方或授权代理 API Key",
     },
     "WorkBuddy (聚合平台)": {
         "models": [
@@ -143,85 +141,377 @@ PROVIDER_CONFIG = {
     },
 }
 
-# 全品类市场参数字典
-MARKET_SPECS = {
-    "categories": [
-        "地板出风口 (Floor Register / Floor Diffuser)",
-        "侧墙/天花出风口 (Sidewall & Ceiling Register)",
-        "回风过滤面罩 (Filter Return Air Grille)",
-        "标准回风格栅 (Return Air Grille - 无滤网款)",
-        "踢脚线风口 (Baseboard Register / Diffuser)",
-        "商业线性条缝散流器 (Linear Slot Diffuser)",
-        "T-Bar 吊顶跌落式散流器 (2x2 T-Bar Ceiling Diffuser)",
-        "✍️ 自定义手动填写品类",
-        "❓ 【我不知道/请AI根据北美市场推断】",
-    ],
-    "sizes": [
-        "4x10 inches (北美最畅销标准地面开孔)",
-        "4x12 inches",
-        "2x10 inches",
-        "2x12 inches",
-        "2x14 inches",
-        "6x10 inches",
-        "6x12 inches",
-        "6x6 inches (侧墙天花常用)",
-        "8x8 inches",
-        "10x6 inches",
-        "12x6 inches",
-        "14x20 inches (回风过滤常用)",
-        "14x25 inches",
-        "20x20 inches",
-        "20x25 inches",
-        "20x30 inches",
-        "15 inches (踢脚线风口)",
-        "18 inches",
-        "24 inches",
-        "48 inches (商业线性条缝风口)",
-        "✍️ 自定义手动填写尺寸",
-        "❓ 【我不知道/请AI根据北美市场推断】",
-    ],
-    "materials": [
-        "A380 汽车级重型高压压铸铝 (Cast Aluminum)",
-        "SPCC 冷轧钢板连续模冲压 (Stamped Cold-Rolled Steel)",
-        "6063-T5 阳极氧化优质铝挤型材 (Extruded Aluminum)",
-        "工程 ABS/PC 阻燃防结露注塑塑料 (Injection Molded ABS)",
-        "实木材质 (Solid Red Oak / White Oak / Maple)",
-        "纯黄铜/青铜重型铸造 (Solid Cast Brass / Bronze)",
-        "钢木复合结构 (Steel Frame + Hardwood Insert)",
-        "✍️ 自定义手动填写材质",
-        "❓ 【我不知道/请AI根据北美市场推断】",
-    ],
-    "dampers": [
-        "ABS 工程塑料耐磨滑块百叶阀 (Sliding Louver Damper - 耐高温无锈蚀)",
-        "全钢连动多叶对开风门 (Opposed Blade Damper, OBD - 高风阻精确调节)",
-        "全钢连动单向百叶阀 (Multi-Shutter Damper)",
-        "重力平衡自垂翻板 (Gravity Flap Damper)",
-        "内置可调气流导向柱 (Pattern Controllers - 线性散流器专配)",
-        "纯面罩无风阀 (Grille Only - No Damper)",
-        "✍️ 自定义手动填写调节阀",
-        "❓ 【我不知道/请AI根据北美市场推断】",
-    ],
-    "finishes": [
-        "威霖环保双涂层：电泳底漆 + 哑光黑静电粉末喷涂 (Powder Coated Matte Black)",
-        "商超标准哑光白粉末喷涂 (Powder Coated White / Off-White)",
-        "金属拉丝表面处理 (Brushed Nickel Finish)",
-        "仿古油擦青铜色 (Oil Rubbed Bronze, ORB)",
-        "清漆阳极氧化磨砂 (Clear Satin Anodized)",
-        "电镀铬色 (Polished Chrome)",
-        "未上漆实木原色 (Unfinished Raw Wood - 供现场刷漆)",
-        "✍️ 自定义手动填写表面处理",
-        "❓ 【我不知道/请AI根据北美市场推断】",
-    ],
+# ==================== 3. 威霖专业级北美暖通全品类工程树状数据库 ====================
+# 彻底解决品类不联动问题，实现严格的树状级联
+RUNNER_PRODUCT_TREE = {
+    "地板出风口 (Floor Register / Floor Diffuser)": {
+        "sizes": [
+            "4x10 inches (北美最畅销标准地面开孔)",
+            "4x12 inches",
+            "2x10 inches",
+            "2x12 inches",
+            "2x14 inches",
+            "6x10 inches",
+            "6x12 inches",
+            "3x10 inches",
+            "✍️ 自定义手动填写尺寸",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "materials": [
+            "A380 汽车级重型高压压铸铝 (Cast Aluminum - 承重抗踩断)",
+            "SPCC 冷轧钢板连续冲压 (0.6mm-0.8mm 薄板商超量产款)",
+            "工程 ABS/PC 阻燃防结露注塑塑料 (沿海高湿区专用)",
+            "6063-T5 阳极氧化铝挤型材 (现代极简齐平内嵌款)",
+            "实木材质 (Solid Red Oak / White Oak / Maple)",
+            "纯黄铜/青铜重型铸造 (Solid Cast Brass / Bronze)",
+            "✍️ 自定义手动填写材质",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "dampers": [
+            "ABS 工程塑料耐磨滑块百叶阀 (Sliding Louver Damper - 耐高温无锈蚀)",
+            "全钢连动单向百叶调节阀 (Steel Multi-Shutter Damper)",
+            "全钢对开对向连动风门 (Opposed Blade Damper, OBD)",
+            "无风门纯格栅 (Grille Only - No Damper)",
+            "✍️ 自定义手动填写调节阀",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "air_patterns": [
+            "双向条缝百叶分流 (Two-way Diverting Air Flow)",
+            "加州式宽幅扩散 (Wide Crest Spread Pattern)",
+            "垂直单向条缝直吹 (Straight Vertical Throw)",
+            "美式经典卷轴花纹漫射 (Classic Scroll Decorative)",
+            "✍️ 自定义气流形态",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "mountings": [
+            "Drop-in 徒手落入式 (免打螺丝孔/依靠重力与卡爪固定)",
+            "Flush Mount 与地板齐平嵌入式 (可嵌实木/SPC条)",
+            "边框预留沉头螺丝孔固定 (Countersunk Screw Holes)",
+            "✍️ 自定义安装工法",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "blade_pitches": [
+            "标准百叶网孔间隙 (Heel-proof 防卡鞋跟 <9.5mm / 0.375\")",
+            "重型粗筋格栅间隙 (Heavy-Duty Grille Bars)",
+            "现代微细线性长缝 (Narrow Linear Slot 6mm)",
+            "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+    },
+    "侧墙/天花出风口 (Sidewall & Ceiling Register)": {
+        "sizes": [
+            "6x6 inches (侧墙天花常用方口)",
+            "8x8 inches",
+            "10x6 inches (美标最通用侧墙尺寸)",
+            "10x8 inches",
+            "12x6 inches",
+            "12x8 inches",
+            "12x12 inches",
+            "14x6 inches",
+            "14x8 inches",
+            "✍️ 自定义手动填写尺寸",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "materials": [
+            "SPCC 优质冷轧钢连续冲压 (商超走量标配)",
+            "6063-T5 铝挤型材外框 + 冲压铝可调叶片 (防结露抗腐蚀)",
+            "工程 ABS 塑料防冷凝天花风口",
+            "✍️ 自定义手动填写材质",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "dampers": [
+            "多叶连动风阀附带低剖面调节拨片 (Multi-Shutter Damper)",
+            "对开双向连动平衡风阀 (Opposed Blade Damper - OBD)",
+            "单叶自重平衡翻板风门",
+            "无调节风阀 (纯出风格栅 Register Grille Only)",
+            "✍️ 自定义手动填写调节阀",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "air_patterns": [
+            "1-Way 单向垂直偏转射流 (One-Way Deflection)",
+            "2-Way 双向水平两翼射流 (Two-Way Corner/Split Throw)",
+            "3-Way 三向广角环绕射流 (Three-Way Deflection)",
+            "4-Way 四向全景均布扩散 (Four-Way Ceiling Spread)",
+            "双层独立可调弧形叶片 (Double Deflection Adjustable)",
+            "✍️ 自定义气流形态",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "mountings": [
+            "外凸法兰边框带沉头螺丝孔 (Beveled Frame with Screw Holes - 附带安装螺丝)",
+            "法兰背面附贴 EVA 发泡密封垫圈 (EVA Foam Gasket - 防漏风与共振异响)",
+            "暗装弹簧卡扣卡入式 (Concealed Spring Clips)",
+            "✍️ 自定义安装工法",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "blade_pitches": [
+            "1/3 英寸密集百叶间距 (1/3\" Fin Pitch - 商超走量主流/防直视管内积灰)",
+            "1/2 英寸标准工业间距 (1/2\" Fin Pitch - 高开孔率/低风阻CFM)",
+            "20° 固定偏转叶片 (Fixed 20 Degree Deflection)",
+            "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+    },
+    "T-Bar 吊顶跌落式散流器 (2x2 T-Bar Ceiling Diffuser)": {
+        "sizes": [
+            (
+                "23-3/4\" x 23-3/4\" 面板 (适配 2x2 ft T-Bar 龙骨) 配 6\""
+                " 圆形颈部 (6-Inch Round Collar)"
+            ),
+            (
+                "23-3/4\" x 23-3/4\" 面板 (适配 2x2 ft T-Bar 龙骨) 配 8\""
+                " 圆形颈部 (8-Inch Round Collar)"
+            ),
+            (
+                "23-3/4\" x 23-3/4\" 面板 (适配 2x2 ft T-Bar 龙骨) 配 10\""
+                " 圆形颈部 (10-Inch Round Collar)"
+            ),
+            (
+                "23-3/4\" x 23-3/4\" 面板 (适配 2x2 ft T-Bar 龙骨) 配 12\""
+                " 圆形颈部 (12-Inch Round Collar)"
+            ),
+            (
+                "23-3/4\" x 23-3/4\" 面板 (适配 2x2 ft T-Bar 龙骨) 配 14\""
+                " 圆形颈部 (14-Inch Round Collar)"
+            ),
+            "1x1 ft 跌落面板配 6\" 圆颈",
+            "✍️ 自定义手动填写尺寸",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "materials": [
+            "全钢模具拉伸冲压面罩 + SPCC 镀锌背板 (Steel Stamped Face + Galvanized Back)",
+            "全钢面罩 + 预贴玻纤保温背板 (Molded Fiberglass R6 Insulation Backer)",
+            "全铝合金冲压面罩带轻量化背罩 (All-Aluminum Lightweight)",
+            "穿孔吸音式钢制面板 (Perforated Face Diffuser)",
+            "✍️ 自定义手动填写材质",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "dampers": [
+            "圆形双叶蝶阀调节器 (Round Butterfly Damper - 软风管专用)",
+            "径向放射状轮辐阻尼风阀 (Radial Blade Damper)",
+            "无风门 (风管直接接入静压箱或由 VAV 系统独立变风量调节)",
+            "✍️ 自定义手动填写调节阀",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "air_patterns": [
+            "360° 全圆环形阶梯式扩散射流 (360-Degree Circular Diffusion)",
+            "4-Way 方形四面同心锥形射流 (4-Way Square Cone Air Pattern)",
+            "穿孔板低紊流下送风 (Perforated Low-Turbulence Flow)",
+            "✍️ 自定义气流形态",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "mountings": [
+            "T-Bar 吊顶跌落式安装 (Lay-in Drop into Standard 15/16\" T-Grid)",
+            "细边龙骨跌落安装 (Lay-in for 9/16\" Fineline T-Grid)",
+            "石膏板吊顶表面硬装法兰固定框 (Surface Mount Frame)",
+            "✍️ 自定义安装工法",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "blade_pitches": [
+            "多层同心冲压成型扩散锥叶片 (Multi-Cone Fixed Spacing)",
+            "高开孔率微细冲孔面网 (51% Free Area Perforated Face)",
+            "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+    },
+    "回风过滤面罩 (Filter Return Air Grille)": {
+        "sizes": [
+            "14x20 inches (常用回风过滤开孔尺寸)",
+            "14x25 inches",
+            "16x20 inches",
+            "16x25 inches",
+            "20x20 inches (北美最通用大号回风面罩)",
+            "20x25 inches",
+            "20x30 inches",
+            "24x24 inches",
+            "25x25 inches",
+            "✍️ 自定义手动填写尺寸",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "materials": [
+            "全钢冲压固定百叶面板 + 加固冲压外框 (Heavy Gauge Steel)",
+            "6063 铝挤型材外框 + 铝制固定叶片 (防潮防下垂)",
+            "线性细密金属网面罩",
+            "✍️ 自定义手动填写材质",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "dampers": [
+            "内置 1 英寸厚度标准 HVAC 过滤网槽架 (Accommodates 1\" Air Filter)",
+            "内置 2 英寸加厚高能效过滤网槽架 (Accommodates 2\" Thick Filter)",
+            "内置 4 英寸商业级折叠滤网槽架 (Accommodates 4\" Deep Filter)",
+            "无滤网框架 (标准回风格栅 Return Grille Only)",
+            "✍️ 自定义手动填写调节阀",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "air_patterns": [
+            "45° 倾角下视防窥视吸风格栅 (45-Degree Downward Angled Blades)",
+            "水平无阻力吸风 (Horizontal Free Return Airflow)",
+            "✍️ 自定义气流形态",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "mountings": [
+            "可拆卸铰链式开合门带双侧按压塑料插销锁扣 (Hinged with Quick-Release Latches)",
+            "门铰链带可拆卸卡销 (Removable Hinge Door for Easy Filter Swap)",
+            "边框预钻法兰螺栓安装孔",
+            "✍️ 自定义安装工法",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "blade_pitches": [
+            "1/3 英寸密集百叶间距 (1/3\" Spacing - 完全遮蔽内部积灰滤网)",
+            "1/2 英寸标准开孔百叶间距 (1/2\" Spacing - 降低回风阻力)",
+            "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+    },
+    "标准回风格栅 (Return Air Grille - 无滤网款)": {
+        "sizes": [
+            "10x10 inches",
+            "12x12 inches",
+            "14x14 inches",
+            "14x20 inches",
+            "14x24 inches",
+            "20x20 inches",
+            "24x12 inches",
+            "30x12 inches",
+            "✍️ 自定义手动填写尺寸",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "materials": [
+            "全钢冲压整体百叶面罩",
+            "铝合金型材边框 + 铝百叶条",
+            "✍️ 自定义手动填写材质",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "dampers": [
+            "纯回风格栅面板 (No Damper - 无风门，回风通道直通)",
+            "✍️ 自定义调节阀",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "air_patterns": [
+            "45° 倾角固定单向回风 (Deflected Return Air)",
+            "线性直条缝回风 (Linear Bar Return)",
+            "✍️ 自定义气流形态",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "mountings": [
+            "宽边法兰带螺丝孔固定 (Wall or Ceiling Mount with Screws)",
+            "✍️ 自定义安装工法",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "blade_pitches": [
+            "1/3 英寸密集防直视间距",
+            "1/2 英寸工程低风阻间距",
+            "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+    },
+    "踢脚线风口 (Baseboard Register / Diffuser)": {
+        "sizes": [
+            "15 inches 标准长度 (7-1/4\" 高度)",
+            "18 inches 加长型 (7-1/4\" 高度)",
+            "24 inches 重型长款 (7-1/4\" 高度)",
+            "✍️ 自定义手动填写尺寸",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "materials": [
+            "SPCC 优质全冷轧钢冲压折弯 (成型刚性强抗脚踢碰撞)",
+            "铝合金抗刮擦踢脚线面板",
+            "✍️ 自定义手动填写材质",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "dampers": [
+            "全长重力平衡风门板 (Gravity Balanced Flap Damper)",
+            "单侧指拨滑块连动风门板 (Lever Operated Damper)",
+            "✍️ 自定义调节阀",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "air_patterns": [
+            "前凸扇形三维立体广角漫射 (Fan-shaped Baseboard Throw)",
+            "两端偏转向上送风 (End-deflected Perimeter Throw)",
+            "✍️ 自定义气流形态",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "mountings": [
+            "地面与墙脚阴角贴靠安装 (Baseboard Corner Surface Mount)",
+            "底板带螺丝孔固定",
+            "✍️ 自定义安装工法",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "blade_pitches": [
+            "立式冲压条缝格栅条",
+            "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+    },
+    "商业线性条缝散流器 (Linear Slot Diffuser)": {
+        "sizes": [
+            "1 Slot (单槽) - 48 inches 长度 (宽度约 1.5\")",
+            "2 Slot (双槽) - 48 inches 长度 (宽度约 2.5\")",
+            "3 Slot (三槽) - 48 inches 长度 (宽度约 3.75\")",
+            "4 Slot (四槽) - 48 inches 长度 (宽度约 5.0\")",
+            "2 Slot (双槽) - 72 inches 长度 (商业大厅长条型)",
+            "1/2\" Slot 缝宽系列",
+            "3/4\" Slot 缝宽系列",
+            "1\" Slot 宽条缝系列",
+            "✍️ 自定义手动填写尺寸",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "materials": [
+            "6063-T5 阳极氧化铝挤型材边框 + 黑色铝挤导风条",
+            "高强度铝合金外框 + ABS 塑料内部导向器",
+            "✍️ 自定义手动填写材质",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "dampers": [
+            "槽内内置独立可旋转导流控制黑柱 (Pattern Controllers - 兼具风量调节与变向)",
+            "外接镀锌静压箱带蝶阀或滑阀调节 (External Plenum Box Damper)",
+            "无调节机构 (纯散流口)",
+            "✍️ 自定义调节阀",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "air_patterns": [
+            "水平贴附射流 (Horizontal Ceiling Coanda Effect Throw - 180° 双向或单向贴顶)",
+            "垂直下吹射流 (Vertical Downward Jet Throw - 用于高挑大堂与玻璃幕墙幕帘)",
+            "✍️ 自定义气流形态",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "mountings": [
+            "明装法兰边框带隐蔽螺栓安装 (Surface Flange with Concealed Brackets)",
+            "无边框抹灰嵌入式齐平安装 (Mud-in Plaster Borderless Frame)",
+            "静压箱吊杆悬挂固定 (Plenum Box Suspension)",
+            "✍️ 自定义安装工法",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "blade_pitches": [
+            "3/4 英寸标准条缝间距 (3/4\" Slot Width)",
+            "1 英寸大流量条缝间距 (1\" Slot Width)",
+            "1/2 英寸极简微槽间距 (1/2\" Slot Width)",
+            "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+    },
 }
 
+# 通用表面涂装与处理工艺选项库
+GLOBAL_FINISHES = [
+    "威霖环保双涂层：电泳底漆 + 哑光黑静电粉末喷涂 (Powder Coated Matte Black)",
+    "商超标准哑光白粉末喷涂 (Traffic White RAL 9016 / 10-20% Gloss)",
+    "商超亮白经典液体烤漆 (Semi-Gloss White)",
+    "金属拉丝表面处理 (Brushed Nickel Finish)",
+    "仿古油擦青铜色 (Oil Rubbed Bronze, ORB)",
+    "清漆阳极氧化磨砂 (Clear Satin Anodized 6063 铝挤专配)",
+    "电镀亮铬色 (Polished Chrome)",
+    "未上漆实木原色 (Unfinished Raw Wood - 供现场刷漆)",
+    "✍️ 自定义手动填写表面处理",
+    "❓ 【我不知道/请AI根据北美市场推断】",
+]
 
-# ==================== 3. 实时多路定向网络探针 ====================
+
+# ==================== 4. 实时多路定向网络探针 ====================
 def search_live_probe(query, max_results=3):
-  """带限流保护与结构化清洗的实时抓取器"""
   if not HAS_DDGS:
-    return "（未检测到 duckduckgo_search 模块，系统使用内置工厂物理公差数据库）"
+    return "（未安装 duckduckgo_search 模块，系统使用内置工厂物理公差数据库）"
   try:
-    time.sleep(0.5)  # 避免 429 报错
+    time.sleep(0.5)
     ddgs = DDGS()
     results = []
     for r in ddgs.text(query, max_results=max_results):
@@ -235,21 +525,17 @@ def search_live_probe(query, max_results=3):
 
 
 def execute_multi_vector_search(cat, size, mat, channel):
-  """多路定向并发探针：精准抓取价格、工程图纸公差与关税数据"""
   now_str = time.strftime("%Y-%m-%d %H:%M:%S")
 
-  # 探针 1: 商超端实时挂牌价与在售 SKU
   q_price = (
       f"{cat} {size} {mat} price Home Depot Lowes Menards current retail"
   )
   res_price = search_live_probe(q_price, 2)
 
-  # 探针 2: 工程图纸尺寸、配合公差、Free Area通风率与IBC承重
   q_eng = f"{cat} {size} duct opening box size faceplate Free Area CFM IBC load capacity"
   res_eng = search_live_probe(q_eng, 2)
 
-  # 探针 3: 美国海关 USITC 关税与 HS Code 编码
-  q_tariff = f"USITC HTS code Section 301 tariff rate {mat} floor register ventilation grille"
+  q_tariff = f"USITC HTS code Section 301 tariff rate {mat} ventilation diffuser register"
   res_tariff = search_live_probe(q_tariff, 2)
 
   compiled_feed = f"""<live_ground_truth_feed timestamp="{now_str}" target_channel="{channel}">
@@ -265,7 +551,7 @@ def execute_multi_vector_search(cat, size, mat, channel):
   return compiled_feed, now_str
 
 
-# ==================== 4. 统一大模型流式调度引擎 ====================
+# ==================== 5. 统一大模型流式调度引擎 ====================
 def stream_llm_response(
     provider,
     model,
@@ -345,7 +631,7 @@ def stream_llm_response(
   return full_text
 
 
-# ==================== 5. 侧边栏与外贸业务全局设定 ====================
+# ==================== 6. 侧边栏与外贸业务全局设定 ====================
 with st.sidebar:
   st.markdown("### 🏢 宁波威霖住宅设施有限公司")
   st.caption("Ningbo Runner · 北美暖通出风口外贸产品认知工作台")
@@ -436,19 +722,15 @@ st.caption(
     f" **{trade_terms.split(' ')[0]}** | 渠道定位: **{target_channel.split(' ')[0]}**"
 )
 
-# 纯净的 Demo 加载逻辑，避免破坏输入状态
+# 动态 Demo 快速填充
 if "demo_payload" not in st.session_state:
   st.session_state.demo_payload = {}
 
 col_top1, col_top2 = st.columns([3, 1])
 with col_top2:
-  if st.button("📥 一键填入威霖畅销款演示数据 (Demo)", use_container_width=True):
+  if st.button("📥 一键载入地板风口畅销款演示数据 (Demo)", use_container_width=True):
     st.session_state.demo_payload = {
-        "cat_idx": 0,
-        "size_idx": 0,
-        "mat_idx": 0,
-        "damper_idx": 0,
-        "finish_idx": 0,
+        "cat": "地板出风口 (Floor Register / Floor Diffuser)",
         "ref_link": (
             "https://www.homedepot.com/p/Decor-Grates-4-in-x-10-in-Cast-Aluminum-Floor-Register-AJH410-ALU/202525184"
         ),
@@ -480,49 +762,63 @@ def parse_selection(choice, custom_val, field_name):
 
 # ==================== 模式 A: 单品 4 阶段深度认知 SOP A ====================
 if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
-  # 状态机初始化
   for k in ["s1", "s2", "s3", "s4", "live_feed", "feed_time", "last_signature"]:
     if k not in st.session_state:
       st.session_state[k] = ""
 
-  st.markdown("### 📋 单品物理与外贸工程输入单")
+  st.markdown("### 📋 单品物理与外贸工程详细输入单")
 
   demo_data = st.session_state.demo_payload
 
+  # --- 核心级联第一步：选择品类 ---
+  category_list = list(RUNNER_PRODUCT_TREE.keys()) + [
+      "✍️ 自定义手动填写品类",
+      "❓ 【我不知道/请AI根据北美市场推断】",
+  ]
+  default_cat_idx = 0
+  if demo_data.get("cat") in category_list:
+    default_cat_idx = category_list.index(demo_data.get("cat"))
+
+  sel_cat = st.selectbox(
+      "1. 产品标准品类 (选择后下方所有规格将自动联动切换)*",
+      category_list,
+      index=default_cat_idx,
+  )
+  custom_cat = ""
+  if "自定义" in sel_cat:
+    custom_cat = st.text_input(
+        "输入自定义品类名称",
+        placeholder="例如: 现代极简隐形出风口 (Frameless Register)",
+    )
+  final_cat = parse_selection(sel_cat, custom_cat, "品类")
+
+  # 提取该品类专有的参数字典
+  cat_tree = RUNNER_PRODUCT_TREE.get(
+      sel_cat, RUNNER_PRODUCT_TREE["地板出风口 (Floor Register / Floor Diffuser)"]
+  )
+
+  # --- 核心级联第二步：联动尺寸、材质、风阀 ---
   c1, c2 = st.columns(2)
   with c1:
-    sel_cat = st.selectbox(
-        "1. 产品标准品类*",
-        MARKET_SPECS["categories"],
-        index=demo_data.get("cat_idx", 0),
-    )
-    custom_cat = ""
-    if "自定义" in sel_cat:
-      custom_cat = st.text_input(
-          "输入自定义品类名称",
-          placeholder="例如: 现代极简隐形出风口 (Frameless Register)",
-      )
-    final_cat = parse_selection(sel_cat, custom_cat, "品类")
-
-  with c2:
+    # 动态切换该品类专有的尺寸列表
     sel_size = st.selectbox(
-        "2. 标称开孔尺寸 (Duct Opening)*",
-        MARKET_SPECS["sizes"],
-        index=demo_data.get("size_idx", 0),
+        f"2. 标称开孔尺寸 (Duct Opening - 专属于当前所选品类)*",
+        cat_tree["sizes"],
+        key=f"size_sel_{sel_cat}",
     )
     custom_size = ""
     if "自定义" in sel_size:
       custom_size = st.text_input(
-          "输入自定义开孔尺寸", placeholder="例如: 4x10 inches"
+          "输入自定义开孔尺寸", placeholder="例如: 24x24 inches 配 10寸圆颈"
       )
     final_size = parse_selection(sel_size, custom_size, "尺寸")
 
-  c3, c4 = st.columns(2)
-  with c3:
+  with c2:
+    # 动态切换该品类专有的材质列表
     sel_mat = st.selectbox(
-        "3. 面板材质与成型工艺*",
-        MARKET_SPECS["materials"],
-        index=demo_data.get("mat_idx", 0),
+        f"3. 面板材质与成型工艺 (专属于当前所选品类)*",
+        cat_tree["materials"],
+        key=f"mat_sel_{sel_cat}",
     )
     custom_mat = ""
     if "自定义" in sel_mat:
@@ -531,11 +827,13 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       )
     final_mat = parse_selection(sel_mat, custom_mat, "材质")
 
-  with c4:
+  c3, c4 = st.columns(2)
+  with c3:
+    # 动态切换该品类专有的风阀机构
     sel_damper = st.selectbox(
-        "4. 风量调节机构/阀门类型*",
-        MARKET_SPECS["dampers"],
-        index=demo_data.get("damper_idx", 0),
+        f"4. 风量调节机构/阀门类型 (专属于当前所选品类)*",
+        cat_tree["dampers"],
+        key=f"damper_sel_{sel_cat}",
     )
     custom_damper = ""
     if "自定义" in sel_damper:
@@ -544,13 +842,8 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       )
     final_damper = parse_selection(sel_damper, custom_damper, "风门")
 
-  c5, c6 = st.columns(2)
-  with c5:
-    sel_finish = st.selectbox(
-        "5. 表面涂装与处理工艺*",
-        MARKET_SPECS["finishes"],
-        index=demo_data.get("finish_idx", 0),
-    )
+  with c4:
+    sel_finish = st.selectbox("5. 表面涂装与处理工艺*", GLOBAL_FINISHES, index=0)
     custom_finish = ""
     if "自定义" in sel_finish:
       custom_finish = st.text_input(
@@ -558,18 +851,63 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       )
     final_finish = parse_selection(sel_finish, custom_finish, "涂装")
 
-  with c6:
-    ref_link = st.text_input(
-        "6. 在售竞品/商超参考链接 (选填)",
-        value=demo_data.get("ref_link", ""),
-        placeholder="例如: Home Depot / Lowe's 在售商品链接",
-    )
+  # --- 新增：专家级工业工程图纸细节（深度联动） ---
+  with st.expander(
+      "🛠️ 展开深度工业工程图纸细节（出风角度/安装法兰/叶片间距/螺丝配件）",
+      expanded=True,
+  ):
+    st.caption(
+      "以下工程细节已联动为当前品类的专业选项，为北美买手与工程询盘提供精准事实依据："
+  )
+    d_col1, d_col2, d_col3 = st.columns(3)
 
-  # 生成当前输入的唯一指纹，监控是否发生产品变更
-  current_inputs_str = f"{final_cat}_{final_size}_{final_mat}_{final_damper}_{final_finish}_{supply_origin}_{trade_terms}_{target_channel}"
+    with d_col1:
+      sel_pattern = st.selectbox(
+          "6. 气流扩散形式 (Air Throw & Deflection)*",
+          cat_tree["air_patterns"],
+          key=f"pattern_{sel_cat}",
+      )
+      custom_pattern = ""
+      if "自定义" in sel_pattern:
+        custom_pattern = st.text_input("填写气流形态", placeholder="例如: 4-Way 四向")
+      final_pattern = parse_selection(sel_pattern, custom_pattern, "气流形态")
+
+    with d_col2:
+      sel_mount = st.selectbox(
+          "7. 边框结构与安装工法 (Mounting Frame)*",
+          cat_tree["mountings"],
+          key=f"mount_{sel_cat}",
+      )
+      custom_mount = ""
+      if "自定义" in sel_mount:
+        custom_mount = st.text_input(
+            "填写安装工法", placeholder="例如: Drop-in 徒手落入免螺丝"
+        )
+      final_mount = parse_selection(sel_mount, custom_mount, "安装工法")
+
+    with d_col3:
+      sel_pitch = st.selectbox(
+          "8. 叶片结构与排布间距 (Blade Pitch)*",
+          cat_tree["blade_pitches"],
+          key=f"pitch_{sel_cat}",
+      )
+      custom_pitch = ""
+      if "自定义" in sel_pitch:
+        custom_pitch = st.text_input(
+            "填写叶片间距", placeholder="例如: 1/3寸防直视间距"
+        )
+      final_pitch = parse_selection(sel_pitch, custom_pitch, "叶片间距")
+
+  ref_link = st.text_input(
+      "9. 在售竞品/商超参考链接 (选填)",
+      value=demo_data.get("ref_link", ""),
+      placeholder="例如: Home Depot / Lowe's 对应款式链接",
+  )
+
+  # 签名检测机制：包含深度工程参数，确保改动任何一项立刻废除旧数据
+  current_inputs_str = f"{final_cat}_{final_size}_{final_mat}_{final_damper}_{final_finish}_{final_pattern}_{final_mount}_{final_pitch}_{supply_origin}_{trade_terms}_{target_channel}"
   current_signature = hashlib.md5(current_inputs_str.encode("utf-8")).hexdigest()
 
-  # 只要输入发生变化，立刻静默清空旧缓存，保证绝无历史旧数据混入
   if (
       st.session_state.last_signature
       and st.session_state.last_signature != current_signature
@@ -625,11 +963,14 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 【威霖工程与外贸单品条件】
 - 产品品类: {final_cat}
 - 标称开孔尺寸: {final_size}
-- 面板材质工艺: {final_mat}
-- 调节机构: {final_damper}
-- 表面处理: {final_finish}
+- 面板材质与工艺: {final_mat}
+- 调节机构/风门: {final_damper}
+- 表面处理与涂层: {final_finish}
+- 气流分布形态: {final_pattern}
+- 安装结构与法兰: {final_mount}
+- 叶片结构与间距: {final_pitch}
 - 供应链参数: 出货基地【{supply_origin}】 | 贸易条款【{trade_terms}】 | 渠道包装【{target_channel}】
-- 参考链接: {ref_link if ref_link else '北美行业实时基准'}
+- 竞品参考: {ref_link if ref_link else '北美行业实时基准'}
 
 {st.session_state.live_feed}
 """
@@ -697,7 +1038,6 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
     if st.session_state.s4:
       p_s4.markdown(st.session_state.s4)
   with t5:
-    # 动态组装当前实际生成的阶段，杜绝跨产品拼凑
     if any([
         st.session_state.s1,
         st.session_state.s2,
@@ -707,6 +1047,7 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       full_rep = f"""# 宁波威霖住宅设施 · {final_cat} ({final_size}) 北美市场产品认知报告
 • 执行时间戳: {st.session_state.feed_time}
 • 出货基地: {supply_origin} | 贸易方式: {trade_terms} | 渠道要求: {target_channel}
+• 气流/安装/叶片细节: {final_pattern} | {final_mount} | {final_pitch}
 • 分析引擎: {selected_provider} ({actual_model}) | 数据状态: 100% 强锚定实时搜索
 
 ---
@@ -742,23 +1083,23 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
   SINGLE_PROMPTS = {
       "s1": """
 请执行【Stage 1: 物理配合尺寸、制造工艺、工程标准与关税大表】：
-1. 尺寸解耦：严格依据 <live_ground_truth_feed> 中的尺寸数据，列出标称开孔尺寸 (Duct Opening)、落入风管箱体 (Drop-in Box) 的实测负公差尺寸（余量 -1/8" 至 -3/16"）、面罩外框 (Faceplate) 外径与凸出地板厚度；
-2. 威霖工厂制造可行性：高压压铸铝 A380 / SPCC 冷轧钢冲压 / 6063-T5 铝挤工艺，模具开发周期与生产公差控制，双涂层电泳+静电粉末喷涂技术与 ASTM B117 盐雾测试耐久度；
-3. 北美暖通硬性工程指标：IBC 集中点载荷承重标准 (>=300 lbs 踩踏测试)、ADA Heel-proof 防卡鞋跟尺寸标准 (<9.5mm / 0.375" 网孔间隙)、有效开孔率 Free Area % 与 CFM 风阻曲线；
+1. 详细尺寸解耦：结合气流形态、边框安装工法与叶片间距，列出标称开孔尺寸 (Duct Opening)、实际箱体/圆颈 (Box/Collar) 负公差配合尺寸（标准留量 -1/8" 至 -3/16" 确保徒手装入）、面罩总外径与边框凸出厚度；
+2. 威霖工厂制造可行性：高压压铸铝 A380 / SPCC 钢板冲压拉伸 / 6063-T5 铝挤工艺，模具开发周期与生产公差控制，双涂层电泳+静电粉末喷涂技术与 ASTM B117 盐雾测试耐久度；
+3. 北美硬性工程指标：IBC 300 lbs 集中点载荷抗变形指标 (针对地板风口) / 天花吊顶载荷与防脱落安全设计 (针对 T-Bar 散流器)、ADA Heel-proof 防卡鞋跟尺寸、有效开孔率 Free Area % 与 CFM 风阻曲线；
 4. 实时海关与贸易数据：海关 HS Code 编码、美国 301 关税税率，从【宁波总部】与【建霖泰国海外生产基地】出货的税率及合规优势，40HQ 集装箱装箱容积测算。
-表格中的数据必须 100% 对应实时搜索数据并标明来源。
+表格中的数据必须严格依据 <live_ground_truth_feed> 实时事实并标明来源。
 """,
       "s2": """
 请执行【Stage 2: 地材环境适配、扫地机越障坡度与冷热温差工况全景】：
-1. 地材物理适配：实木地板防刮、LVP/SPC 超薄石塑锁扣地板防边缘压裂、厚绒地毯对拨片调节开关的干涉、瓷砖基层的平整受力；
-2. 智能扫地机器人交互：面罩外缘坡度倒角规范（必须 <3mm 缓坡斜边设计）、防止扫地机卡轮脱困失败与碰撞损坏风阀拨片；
+1. 建筑基层物理适配：实木地板防刮伤、SPC/LVP 超薄石塑地砖防开裂、石膏板吊顶与 T-Bar 龙骨平整嵌合（防下坠与翘曲）、瓷砖与地毯工况；
+2. 扫地机器人交互雷达（地面品类）：外边框坡度倒角是否顺畅（必须 <3mm 缓坡斜边设计）、防止扫地机卡轮脱困失败与碰撞损坏风阀拨片；
 3. 暖通极端冷热温差循环实况：冬季 140°F 强暖风热膨胀异响 (Squeaking) 控制、夏季 55°F 冷风冷凝水积聚防锈防霉表现；
-4. 赤脚踩踏脚感与人体工学：网孔格栅平滑度、边缘无冲压毛刺。
+4. 人体工学与流体体验：裸足脚感、叶片边缘无冲压锐利毛刺。
 严格标记置信度标签。
 """,
       "s3": """
 请执行【Stage 3: 北美在售形态解构、买手渠道包装与海运装柜标准】：
-1. 市场在售同类竞品物理架构拆解：依据 <live_ground_truth_feed>，拆解北美市场上主流品牌（如 Accord, TruAire, Decor Grates）在售款式的物理架构与配置；
+1. 市场在售同类竞品物理架构拆解：依据 <live_ground_truth_feed>，拆解北美市场上主流品牌（如 Accord, TruAire, Decor Grates, Hart & Cooley, Shoemaker）在售款式的物理架构与配置；
 2. 渠道包装形态与测试：
    - 商超零售渠道（Home Depot / Lowe's）：单件热缩膜包覆 + 条形码背卡 (Shrink Wrap with Barcode Backer) / 双泡壳 (Double Blister Pack)，ISTA-1A 包装跌落测试要求；
    - 工程批发渠道（Ferguson）：10-20 件工业牛皮纸大箱散装 (Bulk Pack)，降低开箱包装废弃物；
@@ -768,8 +1109,8 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 """,
       "s4": """
 请执行【Stage 4: 行业技术语言、买手 RFQ 询盘技术参数库与签样规范】：
-1. 【北美暖通买手地道专业技术参数中英文对照库】：涵盖如 CFM, Free Area, Neck Size, Face Flange, Louver, Opposed Blade Damper, Drop-in Fit 等核心词汇的标准工程定义；
-2. 【外贸业务员 RFQ 询盘应答技术表】：当北美建材商超买手或批发商工程总监询问风阻压降、材质厚度、点承重检测、盐雾报告、开孔配合余量等关键参数时，业务员应提供的权威工程数据与技术回复范本；
+1. 【北美暖通买手地道专业技术参数中英文对照库】：涵盖如 CFM, Free Area, Neck Size, Face Flange, Louver, Opposed Blade Damper, Drop-in Fit, Throw & Spread, Coanda Effect, Deflection 等核心词汇的标准工程定义；
+2. 【外贸业务员 RFQ 询盘应答技术表】：当北美建材商超买手或工程批发商采购总监询问风阻压降、材质厚度、点承重检测、盐雾报告、开孔配合余量等关键参数时，业务员应提供的权威工程数据与技术回复范本；
 3. 【出样签样工程确认清单 (Sample PSS Checklist)】：包括实测负公差、涂层膜厚、包装唛头条形码核验等出样前必检清单。
 严格标记置信度标签。
 """,
@@ -782,7 +1123,6 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       st.warning("您未勾选任何阶段，请在上方勾选至少一个阶段后再启动！")
     else:
       try:
-        # 强制每次运行执行最新的实时搜索探针
         refresh_single_live_data()
         ctx = get_single_context()
 
@@ -841,7 +1181,7 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       except Exception as e:
         global_stream_status.error(f"❌ 运行发生异常: {e}")
 
-  # 各分阶段单独刷新
+  # 单独刷新单个阶段
   for btn_item, key_str, p_target, prompt_text, lbl in [
       (btn_re_s1, "s1", p_s1, SINGLE_PROMPTS["s1"], "Stage 1"),
       (btn_re_s2, "s2", p_s2, SINGLE_PROMPTS["s2"], "Stage 2"),
@@ -888,32 +1228,24 @@ else:
 
   demo_d = st.session_state.demo_payload
 
-  c_b_cat, c_b_size = st.columns(2)
-  with c_b_cat:
-    b_cat_choice = st.selectbox(
-        "对标品类*",
-        MARKET_SPECS["categories"],
-        index=demo_d.get("cat_idx", 0),
-    )
-    b_cat_cust = ""
-    if "自定义" in b_cat_choice:
-      b_cat_cust = st.text_input(
-          "输入自定义品类", placeholder="例如: 现代极简隐形出风口"
-      )
-    final_b_cat = parse_selection(b_cat_choice, b_cat_cust, "品类")
+  # 竞品模式品类联动
+  comp_cat_list = list(RUNNER_PRODUCT_TREE.keys())
+  b_cat_choice = st.selectbox(
+      "对标品类 (选择后尺寸将自动联动切换)*", comp_cat_list, index=0
+  )
+  cat_tree_b = RUNNER_PRODUCT_TREE[b_cat_choice]
 
-  with c_b_size:
-    b_size_choice = st.selectbox(
-        "标称开孔尺寸*",
-        MARKET_SPECS["sizes"],
-        index=demo_d.get("size_idx", 0),
+  b_size_choice = st.selectbox(
+      "标称开孔尺寸 (专属于所选品类)*",
+      cat_tree_b["sizes"],
+      key=f"comp_size_{b_cat_choice}",
+  )
+  b_size_cust = ""
+  if "自定义" in b_size_choice:
+    b_size_cust = st.text_input(
+        "输入自定义尺寸", placeholder="例如: 4x10 inches"
     )
-    b_size_cust = ""
-    if "自定义" in b_size_choice:
-      b_size_cust = st.text_input(
-          "输入自定义尺寸", placeholder="例如: 4x10 inches"
-      )
-    final_b_size = parse_selection(b_size_choice, b_size_cust, "尺寸")
+  final_b_size = parse_selection(b_size_choice, b_size_cust, "尺寸")
 
   st.markdown("---")
   st.markdown("**1. 威霖目标款 / 推荐款 (Wellmien Offering)**")
@@ -922,7 +1254,7 @@ else:
     b_name = st.text_input(
         "威霖款标称名称*",
         value=demo_d.get("b_name", ""),
-        placeholder="例如: 威霖重型铸铝装饰款",
+        placeholder="例如: 威霖重型铸铝装饰款 / 威霖全铝天花散流器",
     )
   with cb2:
     b_spec = st.text_input(
@@ -946,13 +1278,13 @@ else:
         placeholder="例如: 0.6mm薄冷轧钢冲压, 白色烤漆, 实时零售价 $7.42",
     )
 
-  st.markdown("**3. 对照竞品 B (高端现代极简隐形款)**")
+  st.markdown("**3. 对照竞品 B (高端现代极简隐形款/高规工程款)**")
   c_b1, c_b2 = st.columns(2)
   with c_b1:
     b2_name = st.text_input(
         "竞品 B 名称*",
         value=demo_d.get("b2_name", ""),
-        placeholder="例如: Aria Vent / Fittes 隐形风口",
+        placeholder="例如: Aria Vent / Fittes 现代极简款",
     )
   with c_b2:
     b2_spec = st.text_input(
@@ -965,16 +1297,14 @@ else:
       "重点横向对标方向",
       value=demo_d.get("bench_focus", ""),
       placeholder=(
-          "例如: 1. 承重踩踏耐用性 (IBC 300 lbs) 2. 扫地机越障通过性 3. 渠道包装与"
-          " 40HQ 柜容对比 4. 徒手更换 (Drop-in) 与复杂切砖 (Flush) 工时对比"
+          "例如: 1. 承重踩踏强度 (IBC 300 lbs) 2. 气流扩散效率与风阻 3. 渠道包装与"
+          " 40HQ 柜容对比"
       ),
   )
 
-  # 竞品模式的输入指纹
-  comp_inputs_str = f"{final_b_cat}_{final_b_size}_{b_name}_{a_name}_{b2_name}_{supply_origin}_{trade_terms}_{target_channel}"
+  comp_inputs_str = f"{b_cat_choice}_{final_b_size}_{b_name}_{a_name}_{b2_name}_{supply_origin}_{trade_terms}_{target_channel}"
   comp_signature = hashlib.md5(comp_inputs_str.encode("utf-8")).hexdigest()
 
-  # 只要竞品输入发生变化，立刻静默清空旧缓存
   if (
       st.session_state.last_comp_sig
       and st.session_state.last_comp_sig != comp_signature
@@ -986,7 +1316,7 @@ else:
   def refresh_comp_live_data():
     with st.spinner("🌐 正在并发发起竞品定向探针，抓取当下在售真实数据..."):
       feed, t_str = execute_multi_vector_search(
-          f"{final_b_cat} {b_name} {a_name}",
+          f"{b_cat_choice} {b_name} {a_name}",
           final_b_size,
           "benchmark",
           target_channel,
@@ -1003,7 +1333,7 @@ else:
       refresh_comp_live_data()
     return f"""
 【竞品横向技术对标输入】
-- 对标品类: {final_b_cat} | 标称规格: {final_b_size}
+- 对标品类: {b_cat_choice} | 标称规格: {final_b_size}
 - 威霖基准款: {b_name} | 参数: {b_spec}
 - 对照竞品 A: {a_name} | 参数: {a_spec}
 - 对照竞品 B: {b2_name} | 参数: {b2_spec}
@@ -1027,8 +1357,8 @@ else:
       "cp2": """
 请执行【竞品对标维度二：地材适配兼容、扫地机器人通过性与极端工况对比】：
 1. 深入对比三款产品在建筑实际应用中的客观表现：
-   - 复杂地材适配：实木地板防刮、LVP/SPC 超薄石塑锁扣地板防边缘压裂、瓷砖基层的平整受力；
-   - 扫地机器人干涉雷达：外唇坡度倒角是否顺畅（是否 <3mm 缓坡斜边）、卡轮脱困表现、外露拨片碰撞耐受性；
+   - 复杂地材/天花基层适配：实木地板防刮、SPC/LVP 超薄石塑锁扣地板防边缘压裂、瓷砖基层的平整受力、T-Bar 龙骨抗变形下坠；
+   - 扫地机器人干涉雷达（地面款）：外唇坡度倒角是否顺畅（是否 <3mm 缓坡斜边）、卡轮脱困表现、外露拨片碰撞耐受性；
    - 暖通冷热交替循环极限工况：冬季 140°F 强暖风（金属热膨胀形变与摩擦异响 Squeaking 控制、ABS 阀体耐温表现）与夏季冷凝水防锈表现；
    - 安装耗时与人工门槛：普通消费者徒手落入更换 (Drop-in) 耗时（约10秒） vs 隐形款现场精确切割地板砖瓦（约30-60分钟+专业师傅工费）。
 严格标记置信度标签。
@@ -1149,7 +1479,7 @@ else:
         st.session_state.cp3,
         st.session_state.cp4,
     ]):
-      full_comp_rep = f"""# 宁波威霖住宅设施 · {final_b_cat} ({final_b_size}) 竞品技术横向对标报告
+      full_comp_rep = f"""# 宁波威霖住宅设施 · {b_cat_choice} ({final_b_size}) 竞品技术横向对标报告
 • 执行时间戳: {st.session_state.comp_feed_time}
 • 出货基地: {supply_origin} | 贸易方式: {trade_terms} | 渠道要求: {target_channel}
 • 分析引擎: {selected_provider} ({actual_model}) | 数据状态: 100% 强锚定实时搜索
@@ -1191,7 +1521,6 @@ else:
       st.warning("您未勾选任何对标维度，请勾选后重试！")
     else:
       try:
-        # 强制每次运行重新抓取最新市场竞品数据
         refresh_comp_live_data()
         ctx_c = get_comp_context()
 
@@ -1250,7 +1579,7 @@ else:
       except Exception as e:
         global_comp_status.error(f"❌ 竞品对标运行异常: {e}")
 
-  # 竞品各分维度单独刷新
+  # 单独刷新竞品维度
   for btn_item, key_str, p_target, prompt_text, lbl in [
       (re_cp1, "cp1", ph_cp1, BENCHMARK_PROMPTS["cp1"], "维度 1"),
       (re_cp2, "cp2", ph_cp2, BENCHMARK_PROMPTS["cp2"], "维度 2"),
