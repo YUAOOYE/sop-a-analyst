@@ -5,7 +5,7 @@ import re
 import time
 import streamlit as st
 
-# ==================== 1. 依赖库导入与安全保护 ====================
+# ==================== 1. 依赖库探测与降级保护 ====================
 HAS_OPENAI = False
 HAS_GEMINI = False
 HAS_DDGS = False
@@ -51,8 +51,15 @@ STRICT FACT-GROUNDING MANDATE (CRITICAL):
 
 Manufacturing & Engineering Focus:
 - Dual Footprint: Ningbo HQ (China) vs. Runner Thailand (US Section 301 tariff mitigation).
-- Production Realities: High-pressure die casting (A380/ADC12), progressive sheet stamping (SPCC), 6063-T5 aluminum extrusion, eco-friendly dual-coat electro & electrostatic powder coating (ASTM B117 salt spray).
-- Hard Technical Standards: IBC concentrated floor load (>=300 lbs), ADA heel-proof (<9.5mm / 0.375" gap), Free Area % / CFM airflow drop, and duct opening vs. box drop-in negative tolerances (-1/8" to -3/16").
+- Production Realities: High-pressure die casting (A380/ADC12), progressive sheet stamping (SPCC), 6063-T5 aluminum extrusion, eco-friendly dual-coat electro & electrostatic powder coating (ASTM B117 salt spray & ASTM D3359 cross-hatch adhesion).
+- Hard Technical Standards & Certifications:
+  * IBC concentrated floor load (>=300 lbs / 500 lbs) & ADA heel-proof (<9.5mm / 0.375" gap) for Floor Registers.
+  * ASHRAE 70 (Airflow CFM, Static Pressure Drop, and NC Noise Criteria sound levels) for Air Outlets.
+  * ASTM E84 Class A flame/smoke spread & NFPA 90A/90B non-combustibility for ceiling plenum spaces.
+  * AMCA 500-D/500-L air leakage & performance testing for dampers/louvers.
+  * ASHRAE 52.2 (MERV 8/11/13/16 ratings) & UL 900 for filter grilles.
+  * California Proposition 65 & RoHS 3 / REACH legal chemical safety compliance.
+  * ISTA-1A / 2A / 3A packaging drop test compliance for transit damage mitigation.
 - Deep Detail Verification: Blade spacing (1/3" vs 1/2" pitch), Throw pattern (1-way, 2-way, 3-way, 4-way, 360° circular), Mounting frame (Beveled flange with countersunk screw holes + EVA foam gasket vs Drop-in gravity fit), Neck extension & Collar shape (Rectangular vs Round collar for flex duct).
 
 Confidence Tagging:
@@ -61,6 +68,7 @@ Every factual claim must carry one tag:
 Missing data tags: 【未找到】 / 【无法验证】 / 【行业推断】
 """
 
+# 全网官方最新全量大模型配置库
 PROVIDER_CONFIG = {
     "Google Gemini": {
         "models": [
@@ -96,7 +104,7 @@ PROVIDER_CONFIG = {
             "gpt-oss-120b",
         ],
         "default_url": "https://api.openai.com/v1",
-        "key_hint": "OpenAI 官方或授权代理 API Key",
+        "key_hint": "OpenAI 官方或授权代理 API Key (sk-...)",
     },
     "WorkBuddy (聚合平台)": {
         "models": [
@@ -141,8 +149,7 @@ PROVIDER_CONFIG = {
     },
 }
 
-# ==================== 3. 威霖专业级北美暖通全品类工程树状数据库 ====================
-# 彻底解决品类不联动问题，实现严格的树状级联
+# ==================== 3. 威霖北美暖通全品类工程树状数据库（含完整认证标准） ====================
 RUNNER_PRODUCT_TREE = {
     "地板出风口 (Floor Register / Floor Diffuser)": {
         "sizes": [
@@ -197,6 +204,17 @@ RUNNER_PRODUCT_TREE = {
             "✍️ 自定义叶片间距",
             "❓ 【我不知道/请AI根据北美市场推断】",
         ],
+        "standards": [
+            "IBC Section 1607 集中点载荷承重测试 (>=300 lbs 踩踏抗变形标准)",
+            "ADA Title III Section 302.3 Heel-proof 防卡鞋跟标准 (<9.5mm 间隙)",
+            "ASTM B117 盐雾腐蚀试验 (商超标配 96h / 沿海高耐候 240h)",
+            "ASTM D3359 涂层附着力百格测试 (Cross-Hatch Adhesion >= 4B/5B)",
+            "California Proposition 65 (加州65无铅/邻苯安全认证)",
+            "RoHS 3 / REACH 绿色环保有害物质限用指令",
+            "ISTA-1A 运输包装抗跌落防损测试",
+            "✍️ 自定义补充标准",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
     },
     "侧墙/天花出风口 (Sidewall & Ceiling Register)": {
         "sizes": [
@@ -248,6 +266,16 @@ RUNNER_PRODUCT_TREE = {
             "1/2 英寸标准工业间距 (1/2\" Fin Pitch - 高开孔率/低风阻CFM)",
             "20° 固定偏转叶片 (Fixed 20 Degree Deflection)",
             "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "standards": [
+            "ASHRAE Standard 70 性能评定 (出风静压压降、CFM风阻与 NC 噪声级评定)",
+            "ASTM B117 盐雾腐蚀测试 (96h/240h)",
+            "ASTM D3359 漆膜百格附着力测试 (>= 4B/5B)",
+            "California Proposition 65 (加州65无铅/邻苯安全认证)",
+            "RoHS 3 / REACH 环保合规",
+            "ISTA-1A 挂卡/彩盒抗震跌落认证",
+            "✍️ 自定义补充标准",
             "❓ 【我不知道/请AI根据北美市场推断】",
         ],
     },
@@ -312,6 +340,16 @@ RUNNER_PRODUCT_TREE = {
             "✍️ 自定义叶片间距",
             "❓ 【我不知道/请AI根据北美市场推断】",
         ],
+        "standards": [
+            "ASTM E84 / UL 723 表面燃烧与烟气扩散 Class A 级认证 (Plenum 吊顶空间强制)",
+            "NFPA 90A / 90B 暖通通风系统非燃与耐火要求",
+            "ASHRAE Standard 70 声学 NC 评定 (商业办公室通常要求 NC <= 30)",
+            "IBC Seismic Design Categories C-F 吊顶抗震系绳加固规范",
+            "UL 94-V0 塑料部件阻燃认证",
+            "California Proposition 65 (加州65合规)",
+            "✍️ 自定义补充标准",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
     },
     "回风过滤面罩 (Filter Return Air Grille)": {
         "sizes": [
@@ -361,6 +399,15 @@ RUNNER_PRODUCT_TREE = {
             "✍️ 自定义叶片间距",
             "❓ 【我不知道/请AI根据北美市场推断】",
         ],
+        "standards": [
+            "ASHRAE 52.2 滤网能效阻力适配认证 (支持 MERV 8 / 11 / 13 滤网工作压降)",
+            "UL 900 空气过滤器单元安全与防燃认证",
+            "ASTM B117 盐雾腐蚀测试 (96h/240h)",
+            "ASTM D3359 涂层百格测试 (>= 4B)",
+            "California Proposition 65",
+            "✍️ 自定义补充标准",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
     },
     "标准回风格栅 (Return Air Grille - 无滤网款)": {
         "sizes": [
@@ -403,6 +450,14 @@ RUNNER_PRODUCT_TREE = {
             "✍️ 自定义叶片间距",
             "❓ 【我不知道/请AI根据北美市场推断】",
         ],
+        "standards": [
+            "ASHRAE Standard 70 回风开孔有效面积与静压损耗测试",
+            "ASTM B117 盐雾腐蚀测试 (96h)",
+            "ASTM D3359 漆膜附着力测试",
+            "California Proposition 65",
+            "✍️ 自定义补充标准",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
     },
     "踢脚线风口 (Baseboard Register / Diffuser)": {
         "sizes": [
@@ -439,6 +494,14 @@ RUNNER_PRODUCT_TREE = {
         "blade_pitches": [
             "立式冲压条缝格栅条",
             "✍️ 自定义叶片间距",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
+        "standards": [
+            "踢脚线脚踢抗冲击测试 (Impact Resistance against Foot Strikes)",
+            "ASTM B117 盐雾腐蚀测试 (96h)",
+            "ASTM D3359 漆膜附着力测试",
+            "California Proposition 65",
+            "✍️ 自定义补充标准",
             "❓ 【我不知道/请AI根据北美市场推断】",
         ],
     },
@@ -488,10 +551,18 @@ RUNNER_PRODUCT_TREE = {
             "✍️ 自定义叶片间距",
             "❓ 【我不知道/请AI根据北美市场推断】",
         ],
+        "standards": [
+            "ASHRAE Standard 70 贴附气流射程 (Coanda Effect) 与噪声 NC 曲线评定",
+            "AMCA 500-L / 500-D 导流叶片气流泄漏率与空气动力学测试",
+            "ASTM E84 吊顶 Class A 阻燃规范",
+            "ASTM D3359 阳极氧化与喷粉附着力测试",
+            "California Proposition 65",
+            "✍️ 自定义补充标准",
+            "❓ 【我不知道/请AI根据北美市场推断】",
+        ],
     },
 }
 
-# 通用表面涂装与处理工艺选项库
 GLOBAL_FINISHES = [
     "威霖环保双涂层：电泳底漆 + 哑光黑静电粉末喷涂 (Powder Coated Matte Black)",
     "商超标准哑光白粉末喷涂 (Traffic White RAL 9016 / 10-20% Gloss)",
@@ -506,7 +577,7 @@ GLOBAL_FINISHES = [
 ]
 
 
-# ==================== 4. 实时多路定向网络探针 ====================
+# ==================== 4. 实时定向探针网络检索 ====================
 def search_live_probe(query, max_results=3):
   if not HAS_DDGS:
     return "（未安装 duckduckgo_search 模块，系统使用内置工厂物理公差数据库）"
@@ -524,17 +595,23 @@ def search_live_probe(query, max_results=3):
     return f"（实时检索通道波动: {e}，调用威霖暖通工程参数备份）"
 
 
-def execute_multi_vector_search(cat, size, mat, channel):
+def execute_multi_vector_search(cat, size, mat, channel, standards_text):
+  """动态构建探针：彻底杜绝天花风口搜地面承重的假搜索 Bug"""
   now_str = time.strftime("%Y-%m-%d %H:%M:%S")
 
+  # 探针 1: 商超端实时挂牌价与在售 SKU
   q_price = (
       f"{cat} {size} {mat} price Home Depot Lowes Menards current retail"
   )
   res_price = search_live_probe(q_price, 2)
 
-  q_eng = f"{cat} {size} duct opening box size faceplate Free Area CFM IBC load capacity"
+  # 探针 2: 动态根据选定标准搜索工程公差与检测指标
+  # 提取前两个选定的核心标准拼入查询词
+  std_keywords = " ".join(standards_text.split()[:4])
+  q_eng = f"{cat} {size} duct opening box size faceplate Free Area CFM {std_keywords}"
   res_eng = search_live_probe(q_eng, 2)
 
+  # 探针 3: 美国海关 USITC 关税与 HS Code 编码
   q_tariff = f"USITC HTS code Section 301 tariff rate {mat} ventilation diffuser register"
   res_tariff = search_live_probe(q_tariff, 2)
 
@@ -542,7 +619,7 @@ def execute_multi_vector_search(cat, size, mat, channel):
 [PROBE 1 - REAL-TIME RETAIL PRICING & IN-STORE SKUS]
 {res_price}
 
-[PROBE 2 - TECHNICAL DIMENSIONS, TOLERANCES & ENGINEERING CODES]
+[PROBE 2 - TECHNICAL DIMENSIONS, TOLERANCES & COMPLIANCE STANDARDS]
 {res_eng}
 
 [PROBE 3 - US CUSTOMS HS CODE & SECTION 301 TARIFF CODES]
@@ -685,7 +762,7 @@ with st.sidebar:
     ).strip()
 
   st.markdown("---")
-  st.subheader("🚢 威霖外贸供应链与贸易参数")
+  st.subheader("🚢 威霖外贸供应链与商业杠杆")
   supply_origin = st.selectbox(
       "制造出货基地 (规避关税核心)",
       [
@@ -713,16 +790,37 @@ with st.sidebar:
       index=0,
   )
 
+  # 外贸业务核心杠杆：订单规模与包装内装数
+  order_volume = st.selectbox(
+      "预计采购规模 / MOQ (决定模具摊销)",
+      [
+          "商超走量大单 (100,000+ pcs/年 - 大型高速级进模摊销极低)",
+          "常规工程批量 (20,000-50,000 pcs/年 - 标准模具)",
+          "首期试单/非标定制 (3,000-5,000 pcs - 简易工程模工时较高)",
+      ],
+      index=1,
+  )
+  master_pack_qty = st.selectbox(
+      "外箱装箱率 (Master Carton Pack Qty)",
+      [
+          "10 pcs / Master Carton (商超零售彩盒主流)",
+          "20 pcs / Master Carton (工程批发大箱 Bulk 标配)",
+          "24 pcs / Master Carton",
+          "1 pc / Mailer Box (电商小包一件一件包装)",
+      ],
+      index=1,
+  )
+
 # ==================== 顶部标题与演示 Demo 辅助 ====================
 st.markdown(
     "## 🏭 宁波威霖北美暖通出风口（RGD）产品市场详细认知与对标系统"
 )
 st.caption(
     f"出运口岸: **{supply_origin.split(' ')[0]}** | 贸易方式:"
-    f" **{trade_terms.split(' ')[0]}** | 渠道定位: **{target_channel.split(' ')[0]}**"
+    f" **{trade_terms.split(' ')[0]}** | 渠道: **{target_channel.split(' ')[0]}**"
+    f" | 包装率: **{master_pack_qty.split(' ')[0]} pcs**"
 )
 
-# 动态 Demo 快速填充
 if "demo_payload" not in st.session_state:
   st.session_state.demo_payload = {}
 
@@ -770,7 +868,7 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 
   demo_data = st.session_state.demo_payload
 
-  # --- 核心级联第一步：选择品类 ---
+  # --- 1. 品类联动选择 ---
   category_list = list(RUNNER_PRODUCT_TREE.keys()) + [
       "✍️ 自定义手动填写品类",
       "❓ 【我不知道/请AI根据北美市场推断】",
@@ -792,17 +890,15 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
     )
   final_cat = parse_selection(sel_cat, custom_cat, "品类")
 
-  # 提取该品类专有的参数字典
   cat_tree = RUNNER_PRODUCT_TREE.get(
       sel_cat, RUNNER_PRODUCT_TREE["地板出风口 (Floor Register / Floor Diffuser)"]
   )
 
-  # --- 核心级联第二步：联动尺寸、材质、风阀 ---
+  # --- 2. 联动尺寸、材质、风阀与表面处理 ---
   c1, c2 = st.columns(2)
   with c1:
-    # 动态切换该品类专有的尺寸列表
     sel_size = st.selectbox(
-        f"2. 标称开孔尺寸 (Duct Opening - 专属于当前所选品类)*",
+        f"2. 标称开孔尺寸 (Duct Opening - 专属于所选品类)*",
         cat_tree["sizes"],
         key=f"size_sel_{sel_cat}",
     )
@@ -814,9 +910,8 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
     final_size = parse_selection(sel_size, custom_size, "尺寸")
 
   with c2:
-    # 动态切换该品类专有的材质列表
     sel_mat = st.selectbox(
-        f"3. 面板材质与成型工艺 (专属于当前所选品类)*",
+        f"3. 面板材质与成型工艺 (专属于所选品类)*",
         cat_tree["materials"],
         key=f"mat_sel_{sel_cat}",
     )
@@ -829,9 +924,8 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 
   c3, c4 = st.columns(2)
   with c3:
-    # 动态切换该品类专有的风阀机构
     sel_damper = st.selectbox(
-        f"4. 风量调节机构/阀门类型 (专属于当前所选品类)*",
+        f"4. 风量调节机构/阀门类型 (专属于所选品类)*",
         cat_tree["dampers"],
         key=f"damper_sel_{sel_cat}",
     )
@@ -851,19 +945,34 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       )
     final_finish = parse_selection(sel_finish, custom_finish, "涂装")
 
-  # --- 新增：专家级工业工程图纸细节（深度联动） ---
-  with st.expander(
-      "🛠️ 展开深度工业工程图纸细节（出风角度/安装法兰/叶片间距/螺丝配件）",
-      expanded=True,
-  ):
-    st.caption(
-      "以下工程细节已联动为当前品类的专业选项，为北美买手与工程询盘提供精准事实依据："
+  # --- 3. 补齐核心：产品合规与工程检测认证标准（联动） ---
+  st.markdown("---")
+  st.markdown("#### 🛡️ 产品合规、安全与工程检测认证标准 (专属于当前品类)")
+  selected_standards = st.multiselect(
+      "6. 勾选客户或北美市场必须符合的检测标准*",
+      cat_tree["standards"],
+      default=cat_tree["standards"][:3],  # 默认勾选前三项硬性标准
+      key=f"standards_sel_{sel_cat}",
   )
+  custom_standard = st.text_input(
+      "如有其他客户特殊指定检测标准，在此补充 (选填)",
+      placeholder="例如: 需出具第三方 SGS 240小时盐雾报告、UL 181 软风管接口测试等",
+  )
+  final_standards_str = (
+      "; ".join(selected_standards)
+      + (f"; 补充: {custom_standard}" if custom_standard else "")
+  )
+
+  # --- 4. 深度工程图纸细节 ---
+  with st.expander(
+      "🛠️ 展开深度工业工程图纸细节（气流形态/边框结构/叶片间距）",
+      expanded=False,
+  ):
     d_col1, d_col2, d_col3 = st.columns(3)
 
     with d_col1:
       sel_pattern = st.selectbox(
-          "6. 气流扩散形式 (Air Throw & Deflection)*",
+          "7. 气流扩散形式 (Air Throw & Deflection)*",
           cat_tree["air_patterns"],
           key=f"pattern_{sel_cat}",
       )
@@ -874,7 +983,7 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 
     with d_col2:
       sel_mount = st.selectbox(
-          "7. 边框结构与安装工法 (Mounting Frame)*",
+          "8. 边框结构与安装工法 (Mounting Frame)*",
           cat_tree["mountings"],
           key=f"mount_{sel_cat}",
       )
@@ -887,7 +996,7 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 
     with d_col3:
       sel_pitch = st.selectbox(
-          "8. 叶片结构与排布间距 (Blade Pitch)*",
+          "9. 叶片结构与排布间距 (Blade Pitch)*",
           cat_tree["blade_pitches"],
           key=f"pitch_{sel_cat}",
       )
@@ -899,13 +1008,13 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       final_pitch = parse_selection(sel_pitch, custom_pitch, "叶片间距")
 
   ref_link = st.text_input(
-      "9. 在售竞品/商超参考链接 (选填)",
+      "10. 在售竞品/商超参考链接 (选填)",
       value=demo_data.get("ref_link", ""),
       placeholder="例如: Home Depot / Lowe's 对应款式链接",
   )
 
-  # 签名检测机制：包含深度工程参数，确保改动任何一项立刻废除旧数据
-  current_inputs_str = f"{final_cat}_{final_size}_{final_mat}_{final_damper}_{final_finish}_{final_pattern}_{final_mount}_{final_pitch}_{supply_origin}_{trade_terms}_{target_channel}"
+  # 签名检测机制：监控所有字段变动
+  current_inputs_str = f"{final_cat}_{final_size}_{final_mat}_{final_damper}_{final_finish}_{final_standards_str}_{final_pattern}_{final_mount}_{final_pitch}_{supply_origin}_{trade_terms}_{target_channel}_{order_volume}_{master_pack_qty}"
   current_signature = hashlib.md5(current_inputs_str.encode("utf-8")).hexdigest()
 
   if (
@@ -921,9 +1030,9 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
   col_s1, col_s2, col_s3, col_s4 = st.columns(4)
   with col_s1:
     exec_s1 = st.checkbox(
-        "Stage 1: 工艺公差与关税装柜",
+        "Stage 1: 工艺公差、合规标准与关税装柜",
         value=True,
-        help="尺寸负公差、压铸/冲压工艺、IBC承重、HS Code与实时关税",
+        help="尺寸配合公差、模具工艺可行性、各项检测标准、HS Code与关税装柜",
     )
   with col_s2:
     exec_s2 = st.checkbox(
@@ -945,9 +1054,15 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
     )
 
   def refresh_single_live_data():
-    with st.spinner("🌐 正在并发发起多路定向探针，抓取当下实时市场数据..."):
+    with st.spinner(
+        "🌐 正在并发发起多路定向探针，依据所选标准抓取当下实时市场数据..."
+    ):
       feed, t_str = execute_multi_vector_search(
-          final_cat, final_size, final_mat, target_channel
+          final_cat,
+          final_size,
+          final_mat,
+          target_channel,
+          final_standards_str,
       )
       st.session_state.live_feed = feed
       st.session_state.feed_time = t_str
@@ -966,10 +1081,12 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 - 面板材质与工艺: {final_mat}
 - 调节机构/风门: {final_damper}
 - 表面处理与涂层: {final_finish}
+- 强制合规与检测认证标准: {final_standards_str}
 - 气流分布形态: {final_pattern}
 - 安装结构与法兰: {final_mount}
 - 叶片结构与间距: {final_pitch}
-- 供应链参数: 出货基地【{supply_origin}】 | 贸易条款【{trade_terms}】 | 渠道包装【{target_channel}】
+- 供应链商务参数: 出货基地【{supply_origin}】 | 贸易条款【{trade_terms}】 | 渠道包装【{target_channel}】
+- 采购规模与装运: 订单量【{order_volume}】 | 外箱装率【{master_pack_qty}】
 - 竞品参考: {ref_link if ref_link else '北美行业实时基准'}
 
 {st.session_state.live_feed}
@@ -984,6 +1101,26 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
     )
   with col_run2:
     if st.button("🔄 彻底清空所有数据与缓存", use_container_width=True):
+      # 彻底重置所有 session keys，根治 widget 幽灵残留 Bug
+      keys_to_clear = [
+          k
+          for k in st.session_state.keys()
+          if any(
+              k.startswith(prefix)
+              for prefix in [
+                  "size_sel_",
+                  "mat_sel_",
+                  "damper_sel_",
+                  "standards_sel_",
+                  "pattern_",
+                  "mount_",
+                  "pitch_",
+                  "comp_size_",
+              ]
+          )
+      ]
+      for k in keys_to_clear:
+        del st.session_state[k]
       for k in [
           "s1",
           "s2",
@@ -1001,7 +1138,7 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
   global_stream_box = st.empty()
 
   t1, t2, t3, t4, t5, t_live = st.tabs([
-      "📐 Stage 1: 工艺规格与关税装柜",
+      "📐 Stage 1: 工艺规格、合规与关税",
       "🏡 Stage 2: 地材环境与场景应用",
       "📦 Stage 3: 市场在售形态与包装装运",
       "💬 Stage 4: 行业技术语言与询盘库",
@@ -1047,11 +1184,12 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
       full_rep = f"""# 宁波威霖住宅设施 · {final_cat} ({final_size}) 北美市场产品认知报告
 • 执行时间戳: {st.session_state.feed_time}
 • 出货基地: {supply_origin} | 贸易方式: {trade_terms} | 渠道要求: {target_channel}
-• 气流/安装/叶片细节: {final_pattern} | {final_mount} | {final_pitch}
+• 订单规模: {order_volume} | 外箱装率: {master_pack_qty}
+• 强制合规标准: {final_standards_str}
 • 分析引擎: {selected_provider} ({actual_model}) | 数据状态: 100% 强锚定实时搜索
 
 ---
-## Stage 1: 物理配合尺寸、制造工艺、工程标准与海运关税
+## Stage 1: 物理配合尺寸、制造工艺、工程合规标准与海运关税
 {st.session_state.s1 if st.session_state.s1 else '> 【本轮未选定生成此阶段】'}
 
 ---
@@ -1082,11 +1220,11 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 
   SINGLE_PROMPTS = {
       "s1": """
-请执行【Stage 1: 物理配合尺寸、制造工艺、工程标准与关税大表】：
+请执行【Stage 1: 物理配合尺寸、制造工艺、工程合规标准与关税大表】：
 1. 详细尺寸解耦：结合气流形态、边框安装工法与叶片间距，列出标称开孔尺寸 (Duct Opening)、实际箱体/圆颈 (Box/Collar) 负公差配合尺寸（标准留量 -1/8" 至 -3/16" 确保徒手装入）、面罩总外径与边框凸出厚度；
-2. 威霖工厂制造可行性：高压压铸铝 A380 / SPCC 钢板冲压拉伸 / 6063-T5 铝挤工艺，模具开发周期与生产公差控制，双涂层电泳+静电粉末喷涂技术与 ASTM B117 盐雾测试耐久度；
-3. 北美硬性工程指标：IBC 300 lbs 集中点载荷抗变形指标 (针对地板风口) / 天花吊顶载荷与防脱落安全设计 (针对 T-Bar 散流器)、ADA Heel-proof 防卡鞋跟尺寸、有效开孔率 Free Area % 与 CFM 风阻曲线；
-4. 实时海关与贸易数据：海关 HS Code 编码、美国 301 关税税率，从【宁波总部】与【建霖泰国海外生产基地】出货的税率及合规优势，40HQ 集装箱装箱容积测算。
+2. 威霖工厂制造可行性：高压压铸铝 A380 / SPCC 钢板冲压拉伸 / 6063-T5 铝挤工艺，依据【采购规模】分析模具类型（大型高速级进模 vs 单冲模）开发周期与分摊成本；双涂层电泳+静电粉末喷涂技术；
+3. 硬性合规与工程检测认证拆解：针对输入的【强制合规标准】，逐一详细说明其检测方法、达标阈值与测试报告要求（如 IBC 300 lbs 集中点载荷、ASTM B117 盐雾小时数、ASTM D3359 附着力 4B/5B、ASHRAE 70 NC 噪声等级、ASTM E84 Class A 阻燃、California Prop 65 与 RoHS 限用有害物质）；
+4. 实时海关与贸易数据：海关 HS Code 编码、美国 301 关税税率，从【宁波总部】与【建霖泰国海外生产基地】出货的税率及合规优势，结合【外箱装率】测算 40HQ 集装箱装箱容积。
 表格中的数据必须严格依据 <live_ground_truth_feed> 实时事实并标明来源。
 """,
       "s2": """
@@ -1099,19 +1237,16 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
 """,
       "s3": """
 请执行【Stage 3: 北美在售形态解构、买手渠道包装与海运装柜标准】：
-1. 市场在售同类竞品物理架构拆解：依据 <live_ground_truth_feed>，拆解北美市场上主流品牌（如 Accord, TruAire, Decor Grates, Hart & Cooley, Shoemaker）在售款式的物理架构与配置；
-2. 渠道包装形态与测试：
-   - 商超零售渠道（Home Depot / Lowe's）：单件热缩膜包覆 + 条形码背卡 (Shrink Wrap with Barcode Backer) / 双泡壳 (Double Blister Pack)，ISTA-1A 包装跌落测试要求；
-   - 工程批发渠道（Ferguson）：10-20 件工业牛皮纸大箱散装 (Bulk Pack)，降低开箱包装废弃物；
-   - 电商渠道：抗跌落轻量化小包裹包装设计；
-3. 集装箱装运装载率（40HQ Container CBM）：预估单箱体积、整柜装箱数量及美标托盘（US Standard Pallet 48x40"）打托堆叠方案。
+1. 市场在售同类竞品物理架构拆解：依据 <live_ground_truth_feed>，拆解北美市场上主流品牌在售款式的物理架构与配置；
+2. 渠道包装形态与抗摔规范：结合输入的【外箱装箱率】，分析零售彩盒/挂卡吸塑包装 vs 工业大箱牛皮纸散装 (Bulk Pack)，详述 ISTA-1A / 2A 跌落测试与振动测试要求；
+3. 集装箱装运装载率（40HQ Container CBM）：精确计算单箱体积（Carton Cube）、整柜装箱大箱数与总件数，美标托盘（US Standard Pallet 48x40"）打托堆叠方案。
 数据必须真实可靠。
 """,
       "s4": """
 请执行【Stage 4: 行业技术语言、买手 RFQ 询盘技术参数库与签样规范】：
-1. 【北美暖通买手地道专业技术参数中英文对照库】：涵盖如 CFM, Free Area, Neck Size, Face Flange, Louver, Opposed Blade Damper, Drop-in Fit, Throw & Spread, Coanda Effect, Deflection 等核心词汇的标准工程定义；
+1. 【北美暖通买手地道专业技术参数中英文对照库】：涵盖如 CFM, Free Area, Neck Size, Face Flange, Louver, Opposed Blade Damper, Drop-in Fit, Throw & Spread, Coanda Effect, Deflection, Cross-hatch 等核心词汇的标准工程定义；
 2. 【外贸业务员 RFQ 询盘应答技术表】：当北美建材商超买手或工程批发商采购总监询问风阻压降、材质厚度、点承重检测、盐雾报告、开孔配合余量等关键参数时，业务员应提供的权威工程数据与技术回复范本；
-3. 【出样签样工程确认清单 (Sample PSS Checklist)】：包括实测负公差、涂层膜厚、包装唛头条形码核验等出样前必检清单。
+3. 【出样签样工程确认清单 (Sample PSS Checklist)】：包括实测负公差、涂层膜厚、包装唛头条形码核验、第三方测试证书等出样前必检清单。
 严格标记置信度标签。
 """,
   }
@@ -1130,7 +1265,7 @@ if app_mode == "🔍 单品 4 阶段深度认知 SOP A":
             (
                 exec_s1,
                 "s1",
-                "Stage 1: 工艺规格与关税装柜",
+                "Stage 1: 工艺规格、合规与关税",
                 SINGLE_PROMPTS["s1"],
                 p_s1,
             ),
@@ -1228,10 +1363,9 @@ else:
 
   demo_d = st.session_state.demo_payload
 
-  # 竞品模式品类联动
   comp_cat_list = list(RUNNER_PRODUCT_TREE.keys())
   b_cat_choice = st.selectbox(
-      "对标品类 (选择后尺寸将自动联动切换)*", comp_cat_list, index=0
+      "对标品类 (选择后尺寸与标准将自动联动切换)*", comp_cat_list, index=0
   )
   cat_tree_b = RUNNER_PRODUCT_TREE[b_cat_choice]
 
@@ -1246,6 +1380,15 @@ else:
         "输入自定义尺寸", placeholder="例如: 4x10 inches"
     )
   final_b_size = parse_selection(b_size_choice, b_size_cust, "尺寸")
+
+  # 竞品模式同样引入合规标准
+  comp_standards = st.multiselect(
+      "对标关注的硬性合规标准*",
+      cat_tree_b["standards"],
+      default=cat_tree_b["standards"][:2],
+      key=f"comp_std_{b_cat_choice}",
+  )
+  comp_std_str = "; ".join(comp_standards)
 
   st.markdown("---")
   st.markdown("**1. 威霖目标款 / 推荐款 (Wellmien Offering)**")
@@ -1302,7 +1445,7 @@ else:
       ),
   )
 
-  comp_inputs_str = f"{b_cat_choice}_{final_b_size}_{b_name}_{a_name}_{b2_name}_{supply_origin}_{trade_terms}_{target_channel}"
+  comp_inputs_str = f"{b_cat_choice}_{final_b_size}_{b_name}_{a_name}_{b2_name}_{comp_std_str}_{supply_origin}_{trade_terms}_{target_channel}"
   comp_signature = hashlib.md5(comp_inputs_str.encode("utf-8")).hexdigest()
 
   if (
@@ -1320,6 +1463,7 @@ else:
           final_b_size,
           "benchmark",
           target_channel,
+          comp_std_str,
       )
       st.session_state.comp_feed = feed
       st.session_state.comp_feed_time = t_str
@@ -1334,6 +1478,7 @@ else:
     return f"""
 【竞品横向技术对标输入】
 - 对标品类: {b_cat_choice} | 标称规格: {final_b_size}
+- 核心检测标准: {comp_std_str}
 - 威霖基准款: {b_name} | 参数: {b_spec}
 - 对照竞品 A: {a_name} | 参数: {a_spec}
 - 对照竞品 B: {b2_name} | 参数: {b2_spec}
@@ -1348,9 +1493,9 @@ else:
 请执行【竞品对标维度一：工程技术参数、制造工法与关税装柜横向大表】：
 1. 输出标准 Markdown 横向对比矩阵大表，严格对比【威霖目标款】、【竞品 A 冲压薄铁款】、【竞品 B 极简隐形款】：
    - 材质与模具成型工法（压铸铸铝 A380 vs SPCC 冷轧冲压 vs 6063-T5 铝挤/CNC）；
-   - 表面处理体系（双涂层静电喷粉 vs 普通烤漆 vs 阳极氧化；ASTM B117 盐雾测试耐久度）；
+   - 表面处理体系（双涂层静电喷粉 vs 普通烤漆 vs 阳极氧化；ASTM B117 盐雾测试耐久度与 ASTM D3359 附着力）；
    - 物理配合尺寸与公差（Duct Opening 开孔公差、Drop-in Box 负公差配合、面罩外框厚度）；
-   - 通风流体与承重性能（Free Area % 开孔率、CFM 风阻压降、IBC 300 lbs 集中点载荷抗变形指标、Heel-Proof 防卡鞋跟）；
+   - 通风流体与承重性能（Free Area % 开孔率、CFM 风阻压降、各项合规标准如 IBC 300 lbs 集中点载荷/ASHRAE 70/ADA Heel-Proof）；
    - 外贸商业参数：实时在售零售价 MSRP、海关 HS Code 编码、美国 301 关税影响预估、40HQ 装箱容积 CBM。
 表格中的价格与规格必须严格依据 <live_ground_truth_feed> 实时事实并标记来源。
 """,
@@ -1482,6 +1627,7 @@ else:
       full_comp_rep = f"""# 宁波威霖住宅设施 · {b_cat_choice} ({final_b_size}) 竞品技术横向对标报告
 • 执行时间戳: {st.session_state.comp_feed_time}
 • 出货基地: {supply_origin} | 贸易方式: {trade_terms} | 渠道要求: {target_channel}
+• 对标合规标准: {comp_std_str}
 • 分析引擎: {selected_provider} ({actual_model}) | 数据状态: 100% 强锚定实时搜索
 
 ---
@@ -1579,7 +1725,6 @@ else:
       except Exception as e:
         global_comp_status.error(f"❌ 竞品对标运行异常: {e}")
 
-  # 单独刷新竞品维度
   for btn_item, key_str, p_target, prompt_text, lbl in [
       (re_cp1, "cp1", ph_cp1, BENCHMARK_PROMPTS["cp1"], "维度 1"),
       (re_cp2, "cp2", ph_cp2, BENCHMARK_PROMPTS["cp2"], "维度 2"),
